@@ -39,3 +39,13 @@
 
 # debug information files
 *.dwo
+
+
+# max specific files
+.DS_Store
+
+# python enviornments
+venv
+.venv
+
+__pycache__
