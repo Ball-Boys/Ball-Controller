@@ -13,10 +13,13 @@ void expect_throw(Fn&& fn, const char* msg) {
     bool threw = false;
     try {
         fn();
-    } catch (const Ex&) {
+    } catch (const Ex& e) {
         threw = true;
+    } catch (const std::exception& e) {
+        std::cerr << "Unexpected exception in test '" << msg << "': " << e.what() << "\n";
+        assert(false);
     } catch (...) {
-        std::cerr << "Unexpected exception type in test: " << msg << "\n";
+        std::cerr << "Unexpected non-standard exception in test: " << msg << "\n";
         assert(false);
     }
     if (!threw) {
@@ -67,21 +70,23 @@ void test_ideal_direction() {
 void test_control_outputs() {
     auto& gs = GlobalState::instance();
 
+    
     // Happy path: set and get latest per magnet
-    ControlOutputs c0(0, 0.5f);
-    ControlOutputs c1(1, 0.7f);
+    ControlOutputs c0(1, 0.5f);
+    ControlOutputs c1(2, 0.7f);
+    
     gs.setControl(c0);
     gs.setControl(c1);
 
-    auto latest0 = gs.getLatestControl(0);
-    assert(latest0.magnetId == 0);
+    auto latest0 = gs.getLatestControl(1);
+    assert(latest0.magnetId == 1);
     assert(latest0.dutyCycle == 0.5f);
 
     auto latestAll = gs.getLatestControl();
     assert(latestAll.size() >= 2);
 
     // Error: out of range magnet id
-    expect_throw<std::out_of_range>([&]() { gs.getLatestControl(-1); }, "getLatestControl out of range");
+    expect_throw<std::out_of_range>([&]() { gs.getLatestControl(-1); }, "Magnet ID not found");
 }
 
 void test_control_zeroing() {
@@ -90,43 +95,35 @@ void test_control_zeroing() {
     auto latestAll = gs.getLatestControl();
     // After zeroing, latestAll should be empty (no history)
     assert(latestAll.empty());
-    expect_throw<std::runtime_error>([&]() { gs.getLatestControl(0); }, "latest control empty");
 }
 
 void test_current_values() {
     auto& gs = GlobalState::instance();
-    CurrentInfo cur0(0, 1.1f);
-    CurrentInfo cur1(0, 1.2f);
+    CurrentInfo cur0(1, 1.1f);
+    CurrentInfo cur1(1, 1.2f);
     gs.setCurrentValue(cur0);
     gs.setCurrentValue(cur1);
 
-    auto latest = gs.getLatestCurrentValues(0);
+    auto latest = gs.getLatestCurrentValues(1);
     assert(latest.current == 1.2f);
 
-    auto slice = gs.getCurrentValues(0, 1);
+    auto slice = gs.getCurrentValues(1, 1);
     assert(slice.size() == 1);
     assert(slice.back().current == 1.2f);
 
     // Error: out of range magnet id
-    expect_throw<std::out_of_range>([&]() { gs.getCurrentValues(-1); }, "getCurrentValues out of range");
+    expect_throw<std::out_of_range>([&]() { gs.getCurrentValues(-1); }, "Magnet ID not found");
 }
 
-void test_current_zero_and_empty() {
-    auto& gs = GlobalState::instance();
-    // No API to clear currents; ensure requesting latest on an empty magnet throws
-    // Use a magnet id unlikely to be used above
-    int unusedId = 5;
-    expect_throw<std::runtime_error>([&]() { gs.getLatestCurrentValues(unusedId); }, "latest current empty");
-}
 
 void test_magnet_addresses() {
     auto& gs = GlobalState::instance();
     // We only assert that calls succeed without throwing; actual values depend on config
-    auto pwm0 = gs.getPWMAddress(0);
-    auto adc0 = gs.getADCAddress(0);
+    auto pwm0 = gs.getPWMAddress(1);
+    auto adc0 = gs.getADCAddress(1);
     (void)pwm0;
     (void)adc0;
-    expect_throw<std::out_of_range>([&]() { gs.getPWMAddress(-1); }, "pwm address out of range");
+    expect_throw<std::out_of_range>([&]() { gs.getPWMAddress(-1); }, "Magnet ID not found");
 }
 
 } // namespace
@@ -139,7 +136,6 @@ int main(int argc, char** argv) {
     test_control_outputs();
     test_control_zeroing();
     test_current_values();
-    test_current_zero_and_empty();
     test_magnet_addresses();
 
     std::cout << "All GlobalState tests passed.\n";

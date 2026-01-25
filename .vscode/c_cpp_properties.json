@@ -3,12 +3,16 @@
         {
             "name": "Mac",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/esp-controller/include",
+                "${workspaceFolder}/esp-controller/src",
+                "${workspaceFolder}/esp-controller/test"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
+            "compileCommands": "${workspaceFolder}/esp-controller/compile_commands.json",
             "cStandard": "c17",
-            "cppStandard": "c++14",
+            "cppStandard": "c++17",
             "intelliSenseMode": "macos-clang-arm64"
         }
     ],

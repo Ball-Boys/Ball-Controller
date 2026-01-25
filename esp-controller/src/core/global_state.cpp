@@ -80,8 +80,11 @@ ControlOutputs GlobalState::getLatestControl(int magnetId) const {
 }
 
 void GlobalState::setControl(const ControlOutputs& value) {
-    auto& magnet = magnetList.magnets.at(value.magnetId);
-    magnet.setControlValue(value);
+    auto it = magnetList.magnets.find(value.magnetId);
+    if (it == magnetList.magnets.end()) {
+        throw std::out_of_range("Magnet ID not found: " + std::to_string(value.magnetId));
+    }
+    it->second.setControlValue(value);
 }
 
 void GlobalState::setControl(const std::vector<ControlOutputs>& values) {
@@ -168,8 +171,11 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 }
 
 void GlobalState::setCurrentValue(const CurrentInfo& value) {
-    auto& magnet = magnetList.magnets.at(value.magnetId);
-    magnet.setCurrentValue(value);
+    auto it = magnetList.magnets.find(value.magnetId);
+    if (it == magnetList.magnets.end()) {
+        throw std::out_of_range("Magnet ID not found: " + std::to_string(value.magnetId));
+    }
+    it->second.setCurrentValue(value);
 }
 
 
