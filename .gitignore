@@ -41,11 +41,16 @@
 *.dwo
 
 
-# max specific files
+# mac specific files
 .DS_Store
+
+.pio/
+compile_commands.json
 
 # python enviornments
 venv
 .venv
 
 __pycache__
+
+.vscode/**
