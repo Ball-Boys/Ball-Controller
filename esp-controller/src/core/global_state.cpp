@@ -2,13 +2,12 @@
 #include "magnet_config.h"
 
 GlobalState& GlobalState::instance() {
-    static GlobalState singleton;
+    static GlobalState singleton(MAGNET_CONFIG);
     return singleton;
 }
 
-GlobalState::GlobalState(std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> config) 
-    : orientation(1.0f, 0.0f, 0.0f, 0.0f),
-      magnetList(MagnetList::fromConfig(config)),
+GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config) 
+    : magnetList(MagnetList::fromConfig(config)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
       idealDirection(0.0f, 0.0f, 0.0f) {
     orientationHistory.reserve(1000);
@@ -29,7 +28,7 @@ void GlobalState::setOrientation(const Orientation& value) {
 }
 
 void GlobalState::resetOrientation() {
-    orientationHistory.clear()
+    orientationHistory.clear();
 }
 
 
@@ -61,10 +60,10 @@ void GlobalState::setOrientationHistory(const std::vector<Orientation>& history)
 std::vector<ControlOutputs> GlobalState::getLatestControl() const {
     std::vector<ControlOutputs> latest;
     for (const auto& pair : magnetList.magnets) {
-        const auto& controlHistory = pair.second.controlHistory;
+        const auto& controlHistory = pair.second.getControlHistory();
         if (!controlHistory.empty()) {
             const auto& latestControl = controlHistory.back();
-            if (!latestControl.dutyCycle != 0.0f) {
+            if (latestControl.dutyCycle != 0.0f) {
                 latest.push_back(latestControl);
             }
         }
@@ -74,15 +73,15 @@ std::vector<ControlOutputs> GlobalState::getLatestControl() const {
 
 ControlOutputs GlobalState::getLatestControl(int magnetId) const {
     const auto& magnet = magnetList.getMagnetById(magnetId);
-    if (magnet.controlHistory.empty()) {
+    if (magnet.getControlHistory().empty()) {
         throw std::runtime_error("No control outputs yet for this magnet");
     }
-    return magnet.controlHistory.back();
+    return magnet.getControlHistory().back();
 }
 
 void GlobalState::setControl(const ControlOutputs& value) {
     auto& magnet = magnetList.magnets.at(value.magnetId);
-    magnet.controlHistory.push_back(value);
+    magnet.setControlValue(value);
 }
 
 void GlobalState::setControl(const std::vector<ControlOutputs>& values) {
@@ -93,7 +92,7 @@ void GlobalState::setControl(const std::vector<ControlOutputs>& values) {
 
 void GlobalState::zeroControl() {
     for (auto& pair : magnetList.magnets) {
-        pair.second.zeroControl()
+        pair.second.zeroControl();
     }
 }
 
@@ -114,14 +113,14 @@ const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues() 
     allValues.clear();
     
     for (const auto& pair : magnetList.magnets) {
-        allValues.push_back(pair.second.currentHistory);
+        allValues.push_back(pair.second.getCurrentHistory());
     }
     return allValues;
 }
 
 const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId) const {
     const auto& magnet = magnetList.getMagnetById(magnetId);
-    return magnet.currentHistory;
+    return magnet.getCurrentHistory();
 }
 
 const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId, int last_n) const {
@@ -133,10 +132,10 @@ const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId, int 
         return subset;
     }
     
-    int start_idx = std::max(0, static_cast<int>(magnet.currentHistory.size()) - last_n);
+    int start_idx = std::max(0, static_cast<int>(magnet.getCurrentHistory().size()) - last_n);
     subset.insert(subset.end(), 
-                  magnet.currentHistory.begin() + start_idx, 
-                  magnet.currentHistory.end());
+                  magnet.getCurrentHistory().begin() + start_idx, 
+                  magnet.getCurrentHistory().end());
     return subset;
 }
 
@@ -149,7 +148,7 @@ const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues(in
     }
     
     for (const auto& pair : magnetList.magnets) {
-        const auto& history = pair.second.currentHistory;
+        const auto& history = pair.second.getCurrentHistory(last_n);
         int start_idx = std::max(0, static_cast<int>(history.size()) - last_n);
         std::vector<CurrentInfo> magnetSubset(
             history.begin() + start_idx,
@@ -162,15 +161,15 @@ const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues(in
 
 CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
     const auto& magnet = magnetList.getMagnetById(magnetId);
-    if (magnet.currentHistory.empty()) {
+    if (magnet.getCurrentHistory().empty()) {
         throw std::runtime_error("No current values yet for this magnet");
     }
-    return magnet.currentHistory.back();
+    return magnet.getCurrentHistory().back();
 }
 
 void GlobalState::setCurrentValue(const CurrentInfo& value) {
     auto& magnet = magnetList.magnets.at(value.magnetId);
-    magnet.currentHistory.push_back(value);
+    magnet.setCurrentValue(value);
 }
 
 

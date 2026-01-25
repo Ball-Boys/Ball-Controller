@@ -8,38 +8,41 @@
 #define MAGNET_INFO 
 
 struct Orientation {
-    const float w;
-    const float x;
-    const float y;
-    const float z;
+    float w;
+    float x;
+    float y;
+    float z;
 
     Orientation(float w, float x, float y, float z) : w(w), x(x), y(y), z(z) {}
 };
 
 struct ControlOutputs {
-    const int magnetId;
-    const float dutyCycle;
-    const std::chrono::steady_clock::time_point timestamp;
+    int magnetId;
+    float dutyCycle;
+    std::chrono::steady_clock::time_point timestamp;
 
+    ControlOutputs() = delete;
     ControlOutputs(int magnetId, float dutyCycle) : magnetId(magnetId), dutyCycle(dutyCycle), timestamp(std::chrono::steady_clock::now()) {}
 
-    static ControlOutputsOutputs(int magnetId) {
+    static ControlOutputs zero(int magnetId) {
         return ControlOutputs(magnetId, 0.0f);
     }
 };
 
 struct CurrentInfo {
-    const int magnetId;
-    const float current;
-    const std::chrono::steady_clock::time_point timestamp;
+    int magnetId;
+    float current;
+    std::chrono::steady_clock::time_point timestamp;
+
+
 
     CurrentInfo(int magnetId, float current) : magnetId(magnetId), current(current), timestamp(std::chrono::steady_clock::now()) {}
 };
 
 struct Vector3 {
-    const float x;
-    const float y;
-    const float z;
+    float x;
+    float y;
+    float z;
 
     constexpr Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
 };
@@ -74,12 +77,42 @@ class MagnetInfo {
         MagnetInfo(int id, const Vector3& position, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
             : id(id), position(position), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
 
-        const getCurrentHistory() const {
+        const std::vector<CurrentInfo>& getCurrentHistory() const {
             return currentHistory;
         }
 
-        const getControlHistory() const {
+        const std::vector<ControlOutputs>& getControlHistory() const {
             return controlHistory;
+        }
+
+        const std::vector<CurrentInfo>& getCurrentHistory(int last_n) const {
+            static std::vector<CurrentInfo> subset;
+            subset.clear();
+            
+            if (last_n <= 0) {
+                return subset;
+            }
+            
+            int start_idx = std::max(0, static_cast<int>(currentHistory.size()) - last_n);
+            subset.insert(subset.end(), 
+                          currentHistory.begin() + start_idx, 
+                          currentHistory.end());
+            return subset;
+        }
+
+        const std::vector<ControlOutputs>& getControlHistory(int last_n) const {
+            static std::vector<ControlOutputs> subset;
+            subset.clear();
+            
+            if (last_n <= 0) {
+                return subset;
+            }
+            
+            int start_idx = std::max(0, static_cast<int>(controlHistory.size()) - last_n);
+            subset.insert(subset.end(), 
+                          controlHistory.begin() + start_idx, 
+                          controlHistory.end());
+            return subset;
         }
 
         void setCurrentValue(const CurrentInfo& value) {
@@ -102,14 +135,14 @@ struct MagnetList {
     MagnetList() = default;
     MagnetList(std::unordered_map<int, MagnetInfo> mags) : magnets(mags) {}
 
-    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3&, ADCAddress&, PWMAddress&>, kMagnetCount>& config) {
+    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount>& config) {
         std::unordered_map<int, MagnetInfo> magnets;
         for (const auto& item : config) {
             int id = std::get<0>(item);
             const Vector3& pos = std::get<1>(item);
             const ADCAddress& adcAddr = std::get<2>(item);
             const PWMAddress& pwmAddr = std::get<3>(item);
-            if (id < 0 || id >= static_cast<int>(kMagnetCount)) {
+            if (id <= 0 || id > static_cast<int>(kMagnetCount)) {
                 throw std::out_of_range("Magnet ID out of range in configuration");
             }
             magnets.emplace(id, MagnetInfo(id, pos, adcAddr, pwmAddr));
@@ -172,7 +205,7 @@ public:
 
 
 private:
-    GlobalState();
+    GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config);
     GlobalState(const GlobalState&) = delete;
     GlobalState& operator=(const GlobalState&) = delete;
 

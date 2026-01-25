@@ -6,7 +6,7 @@
 #include "calibration/calibration.h"
 #include "ota/ota_update.h"
 
-int main() {
+void setup() {
     // Startup sequence
     runCalibration();
 
@@ -17,5 +17,8 @@ int main() {
     startOtaUpdateTask();
 
     // TODO: replace with FreeRTOS scheduler or framework-specific loop
-    return 0;
+}
+
+void loop() {
+    // TODO: main loop here
 }

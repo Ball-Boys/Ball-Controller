@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <unity.h>
 #include "../src/core/global_state.h"
 #include "../src/core/magnet_config.h"
 
@@ -49,7 +50,10 @@ void test_offset() {
     Orientation off(0.0f, 0.0f, 1.0f, 0.0f);
     gs.setOffset(off);
     auto got = gs.getOffset();
-    assert(got.z == 1.0f);
+    assert(got.y == 1.0f);
+    assert(got.x == 0.0f);
+    assert(got.z == 0.0f);
+    assert(got.w == 0.0f);
 }
 
 void test_ideal_direction() {
@@ -127,7 +131,8 @@ void test_magnet_addresses() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    UNITY_BEGIN();
     test_orientation();
     test_offset();
     test_ideal_direction();
@@ -138,5 +143,5 @@ int main() {
     test_magnet_addresses();
 
     std::cout << "All GlobalState tests passed.\n";
-    return 0;
+    return UNITY_END();
 }
