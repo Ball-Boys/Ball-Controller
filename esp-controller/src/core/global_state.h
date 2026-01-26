@@ -18,12 +18,11 @@ struct Orientation {
 
 struct ControlOutputs {
     int magnetId;
-    float dutyCycle;
+    float current_value;
     std::chrono::steady_clock::time_point timestamp;
 
     ControlOutputs() = delete;
-    ControlOutputs(int magnetId, float dutyCycle) : magnetId(magnetId), dutyCycle(dutyCycle), timestamp(std::chrono::steady_clock::now()) {}
-
+    ControlOutputs(int magnetId, float current_value) : magnetId(magnetId), current_value(current_value), timestamp(std::chrono::steady_clock::now()) {}
     static ControlOutputs zero(int magnetId) {
         return ControlOutputs(magnetId, 0.0f);
     }
@@ -33,8 +32,6 @@ struct CurrentInfo {
     int magnetId;
     float current;
     std::chrono::steady_clock::time_point timestamp;
-
-
 
     CurrentInfo(int magnetId, float current) : magnetId(magnetId), current(current), timestamp(std::chrono::steady_clock::now()) {}
 };
@@ -48,17 +45,17 @@ struct Vector3 {
 };
 
 struct ADCAddress {
-    const int adc_number;
+    const int adc_gpio_address;
     const int channel;
 
-    constexpr ADCAddress(int adc_number, int channel) : adc_number(adc_number), channel(channel) {}
+    constexpr ADCAddress(int adc_gpio_address, int channel) : adc_gpio_address(adc_gpio_address), channel(channel) {}
 };
 
 struct PWMAddress {
-    const int driver_number;
+    const int driver_i2c_address;
     const int channel;
 
-    constexpr PWMAddress(int driver_number, int channel) : driver_number(driver_number), channel(channel) {}
+    constexpr PWMAddress(int driver_i2c_address, int channel) : driver_i2c_address(driver_i2c_address), channel(channel) {}
 
 };
 

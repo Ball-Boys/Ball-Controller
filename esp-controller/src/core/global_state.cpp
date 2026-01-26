@@ -63,7 +63,7 @@ std::vector<ControlOutputs> GlobalState::getLatestControl() const {
         const auto& controlHistory = pair.second.getControlHistory();
         if (!controlHistory.empty()) {
             const auto& latestControl = controlHistory.back();
-            if (latestControl.dutyCycle != 0.0f) {
+            if (latestControl.current_value != 0.0f) {
                 latest.push_back(latestControl);
             }
         }
