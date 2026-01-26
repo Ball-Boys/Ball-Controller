@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#define MAGNET_INFO 
 
 struct Orientation {
     float w;
