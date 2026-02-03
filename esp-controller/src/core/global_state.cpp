@@ -51,6 +51,45 @@ const std::vector<Orientation>& GlobalState::getOrientationHistory(int last_n) c
     return subset;
 }
 
+AngularVelocity GlobalState::getAngularVelocity() const {
+    // Gets the latest angular velocity from the list
+    if (angularVelocityHistory.empty()) {
+        throw std::runtime_error("No angular velocity data available");
+    }
+    return angularVelocityHistory.back();
+}
+
+void GlobalState::setAngularVelocity(const AngularVelocity& value) {
+    angularVelocityHistory.push_back(value);
+}
+
+void GlobalState::resetAngularVelocity() {
+    angularVelocityHistory.clear();
+}
+
+const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory() const {
+    return angularVelocityHistory;
+}
+
+const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory(int last_n) const {
+    static std::vector<AngularVelocity> subset;
+    subset.clear();
+    
+    if (last_n <= 0) {
+        return subset;
+    }
+    
+    int start_idx = std::max(0, static_cast<int>(angularVelocityHistory.size()) - last_n);
+    subset.insert(subset.end(), 
+                  angularVelocityHistory.begin() + start_idx, 
+                  angularVelocityHistory.end());
+    return subset;
+}
+
+void GlobalState::setAngularVelocityHistory(const std::vector<AngularVelocity>& history) {
+    angularVelocityHistory = history;
+}
+
 void GlobalState::setOrientationHistory(const std::vector<Orientation>& history) {
     orientationHistory = history;
 }
@@ -198,4 +237,12 @@ Vector3 GlobalState::getIdealDirection() const {
 
 void GlobalState::setIdealDirection(const Vector3& value) {
     idealDirection = value;
+}
+
+void GlobalState::kill() {
+    killed = true;
+}
+
+bool GlobalState::isKilled() const {
+    return killed;
 }
