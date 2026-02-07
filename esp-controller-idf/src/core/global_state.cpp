@@ -1,13 +1,15 @@
 #include "global_state.h"
 #include "magnet_config.h"
 
+#include "utils/utils.h"
+
 GlobalState& GlobalState::instance() {
     static GlobalState singleton(MAGNET_CONFIG);
     return singleton;
 }
 
 GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config) 
-    : magnetList(MagnetList::fromConfig(config)),
+    : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
       idealDirection(0.0f, 0.0f, 0.0f) {
     orientationHistory.reserve(1000);
@@ -49,6 +51,45 @@ const std::vector<Orientation>& GlobalState::getOrientationHistory(int last_n) c
                   orientationHistory.begin() + start_idx, 
                   orientationHistory.end());
     return subset;
+}
+
+AngularVelocity GlobalState::getAngularVelocity() const {
+    // Gets the latest angular velocity from the list
+    if (angularVelocityHistory.empty()) {
+        throw std::runtime_error("No angular velocity data available");
+    }
+    return angularVelocityHistory.back();
+}
+
+void GlobalState::setAngularVelocity(const AngularVelocity& value) {
+    angularVelocityHistory.push_back(value);
+}
+
+void GlobalState::resetAngularVelocity() {
+    angularVelocityHistory.clear();
+}
+
+const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory() const {
+    return angularVelocityHistory;
+}
+
+const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory(int last_n) const {
+    static std::vector<AngularVelocity> subset;
+    subset.clear();
+    
+    if (last_n <= 0) {
+        return subset;
+    }
+    
+    int start_idx = std::max(0, static_cast<int>(angularVelocityHistory.size()) - last_n);
+    subset.insert(subset.end(), 
+                  angularVelocityHistory.begin() + start_idx, 
+                  angularVelocityHistory.end());
+    return subset;
+}
+
+void GlobalState::setAngularVelocityHistory(const std::vector<AngularVelocity>& history) {
+    angularVelocityHistory = history;
 }
 
 void GlobalState::setOrientationHistory(const std::vector<Orientation>& history) {
@@ -170,12 +211,50 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
     return magnet.getCurrentHistory().back();
 }
 
-void GlobalState::setCurrentValue(const CurrentInfo& value) {
-    auto it = magnetList.magnets.find(value.magnetId);
-    if (it == magnetList.magnets.end()) {
-        throw std::out_of_range("Magnet ID not found: " + std::to_string(value.magnetId));
+
+std::vector<CurrentInfo> GlobalState::currentControlLoop() {
+
+    // collect the latest control outputs for all magnets
+    std::vector<ControlOutputs> latestControls = getLatestControl();
+    std::vector<int> mag_ids;
+    for (const auto& control : latestControls) {
+        mag_ids.push_back(control.magnetId);
     }
-    it->second.setCurrentValue(value);
+
+    std::vector<int> magnets_to_zero = mag_ids;
+
+    // logically it is really important to set an prevously controlled magnets to 0. 
+    for (const auto& mag_id : currentControlledMagnetIds) {
+        if (std::find(mag_ids.begin(), mag_ids.end(), mag_id) == mag_ids.end()) {
+            // we will need to zero this magnet's control output
+            setControl(ControlOutputs::zero(mag_id));
+            // we also will need to manually set the magnets here to 0 
+            magnets_to_zero.push_back(mag_id);
+        }
+    }
+
+    setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
+
+    currentControlledMagnetIds = mag_ids;
+        
+    std::vector<int> currents = retreveCurrentValueFromADC(mag_ids);
+    std::vector<CurrentInfo> currentInfos;
+    std::vector<int> newPWMSignals;
+
+    for (size_t i = 0; i < mag_ids.size(); ++i) {
+        int magnetId = mag_ids[i];
+        float currentValue = currents[i];
+        CurrentInfo currentInfo(magnetId, currentValue);
+        currentInfos.push_back(currentInfo);
+        magnetList.getMagnetById(magnetId).setCurrentValue(currentInfo);
+
+        int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
+        newPWMSignals.push_back(newPWMSignal);
+    }
+
+    setPWMOutputs(mag_ids, newPWMSignals);
+
+    return currentInfos;
 }
 
 
@@ -198,4 +277,12 @@ Vector3 GlobalState::getIdealDirection() const {
 
 void GlobalState::setIdealDirection(const Vector3& value) {
     idealDirection = value;
+}
+
+void GlobalState::kill() {
+    killed = true;
+}
+
+bool GlobalState::isKilled() const {
+    return killed;
 }

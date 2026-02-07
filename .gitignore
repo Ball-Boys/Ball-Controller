@@ -43,6 +43,7 @@
 
 # mac specific files
 .DS_Store
+**/.DS_Store
 
 .pio/
 compile_commands.json
@@ -54,3 +55,11 @@ venv
 __pycache__
 
 .vscode/**
+
+sdkconfig.esp32dev
+
+Ball-Controller.code-workspace
+
+# build outputs
+build/
+**/build/

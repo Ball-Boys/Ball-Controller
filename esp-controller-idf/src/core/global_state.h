@@ -15,6 +15,14 @@ struct Orientation {
     Orientation(float w, float x, float y, float z) : w(w), x(x), y(y), z(z) {}
 };
 
+struct AngularVelocity {
+    float x;
+    float y;
+    float z;
+
+    AngularVelocity(float x, float y, float z) : x(x), y(y), z(z) {}
+};
+
 struct ControlOutputs {
     int magnetId;
     float current_value;
@@ -61,25 +69,51 @@ struct PWMAddress {
 class MagnetInfo {
     
     private:
-        std::vector<CurrentInfo> currentHistory;
+        std::vector<CurrentInfo> activeCurrentHistory;
         std::vector<ControlOutputs> controlHistory;
+        std::vector<CurrentInfo> flushedCurrentHistory;
+
+        int controlIntegral = 0;
+        
     public:
         const int id;
         const Vector3 position;
 
+        
+        const float kp = 50.0f;
+        const float ki = 15000.0f;
+        const float dt; // 300 microseconds
+
         const ADCAddress adcAddress;
         const PWMAddress pwmAddress;
 
-        MagnetInfo(int id, const Vector3& position, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
-            : id(id), position(position), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
+        MagnetInfo(int id, const Vector3& position, const float dt, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
+            : id(id), position(position), dt(dt), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
 
         const std::vector<CurrentInfo>& getCurrentHistory() const {
-            return currentHistory;
+            return activeCurrentHistory;
         }
+
+
 
         const std::vector<ControlOutputs>& getControlHistory() const {
             return controlHistory;
         }
+
+        void flushCurrentHistory() {
+            flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
+                                         activeCurrentHistory.begin(), 
+                                         activeCurrentHistory.end());
+            activeCurrentHistory.clear();
+
+            controlIntegral = 0;
+        }
+
+        const std::vector<CurrentInfo>& getFlushedCurrentHistory() const {
+            return flushedCurrentHistory;
+        }
+
+        
 
         const std::vector<CurrentInfo>& getCurrentHistory(int last_n) const {
             static std::vector<CurrentInfo> subset;
@@ -89,10 +123,10 @@ class MagnetInfo {
                 return subset;
             }
             
-            int start_idx = std::max(0, static_cast<int>(currentHistory.size()) - last_n);
+            int start_idx = std::max(0, static_cast<int>(activeCurrentHistory.size()) - last_n);
             subset.insert(subset.end(), 
-                          currentHistory.begin() + start_idx, 
-                          currentHistory.end());
+                          activeCurrentHistory.begin() + start_idx, 
+                          activeCurrentHistory.end());
             return subset;
         }
 
@@ -112,16 +146,34 @@ class MagnetInfo {
         }
 
         void setCurrentValue(const CurrentInfo& value) {
-            currentHistory.push_back(value);
+            activeCurrentHistory.push_back(value);
         }
 
         void setControlValue(const ControlOutputs& value) {
             controlHistory.push_back(value);
+            flushCurrentHistory();
         }
 
         void zeroControl() {
-            controlHistory.push_back(ControlOutputs::zero(id));
+            setControlValue(ControlOutputs::zero(id));
         }
+
+        float getNextCurrentValuePI() {
+            float error = controlHistory.back().current_value - activeCurrentHistory.back().current;
+            float new_i = ki * error * dt;
+
+            // TODO: ask Josh the purpose of this clipping
+            controlIntegral += new_i;
+            float p_term = kp * error;
+            float i_term = controlIntegral;
+            float output = p_term + i_term;
+
+            
+            // TODO: add bounds here 
+            return (int)(output);
+        }
+
+
 };
 
 struct MagnetList {
@@ -131,7 +183,7 @@ struct MagnetList {
     MagnetList() = default;
     MagnetList(std::unordered_map<int, MagnetInfo> mags) : magnets(mags) {}
 
-    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount>& config) {
+    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount>& config, float dt) {
         std::unordered_map<int, MagnetInfo> magnets;
         for (const auto& item : config) {
             int id = std::get<0>(item);
@@ -141,15 +193,22 @@ struct MagnetList {
             if (id <= 0 || id > static_cast<int>(kMagnetCount)) {
                 throw std::out_of_range("Magnet ID out of range in configuration");
             }
-            magnets.emplace(id, MagnetInfo(id, pos, adcAddr, pwmAddr));
+            magnets.emplace(id, MagnetInfo(id, pos, dt, adcAddr, pwmAddr));
         }
         return MagnetList{magnets};
     }
 
+    MagnetInfo& getMagnetById(int id) {
+        auto it = magnets.find(id);
+        if (it == magnets.end()) {
+            throw std::out_of_range("Magnet ID not found: " + std::to_string(id));
+        }
+        return it->second;
+    }
     const MagnetInfo& getMagnetById(int id) const {
         auto it = magnets.find(id);
         if (it == magnets.end()) {
-            throw std::out_of_range("Magnet ID not found");
+            throw std::out_of_range("Magnet ID not found: " + std::to_string(id));
         }
         return it->second;
     }
@@ -161,6 +220,9 @@ class GlobalState {
 public:
     static GlobalState& instance();
 
+    float fastLoopTime = 0.0003f; // 300 microseconds
+    float slowLoopTime = 0.01f; // 10 milliseconds
+
     // functions get values about the orientation
     Orientation getOrientation() const;
     void setOrientation(const Orientation& value);
@@ -168,6 +230,14 @@ public:
     const std::vector<Orientation>& getOrientationHistory() const;
     const std::vector<Orientation>& getOrientationHistory(int last_n) const;
     void setOrientationHistory(const std::vector<Orientation>& history);
+
+    AngularVelocity getAngularVelocity() const;
+    void setAngularVelocity(const AngularVelocity& value);
+    void resetAngularVelocity();
+    const std::vector<AngularVelocity>& getAngularVelocityHistory() const;
+    const std::vector<AngularVelocity>& getAngularVelocityHistory(int last_n) const;
+    void setAngularVelocityHistory(const std::vector<AngularVelocity>& history);
+
     
     // functions for getting and setting control outputs
     std::vector<ControlOutputs> getLatestControl() const;
@@ -186,8 +256,10 @@ public:
     const std::vector<CurrentInfo>& getCurrentValues(int magnetId, int last_n) const;
     const std::vector<std::vector<CurrentInfo>>& getAllCurrentValues(int last_n) const;
     CurrentInfo getLatestCurrentValues(int magnetId) const;
-    void setCurrentValue(const CurrentInfo& value);
     
+
+
+    std::vector<CurrentInfo> currentControlLoop();
 
     // helper functions to collect magnet info
     PWMAddress getPWMAddress(int magnetId) const;
@@ -197,19 +269,22 @@ public:
     Vector3 getIdealDirection() const;
     void setIdealDirection(const Vector3& value);
 
-
-
+    void kill();
+    bool isKilled() const;
 
 private:
     GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config);
     GlobalState(const GlobalState&) = delete;
     GlobalState& operator=(const GlobalState&) = delete;
 
-
+    MagnetList magnetList;
     Orientation offset;
     std::vector<Orientation> orientationHistory;
-    MagnetList magnetList;
+    std::vector<AngularVelocity> angularVelocityHistory;
     Vector3 idealDirection;
+    std::vector<int> currentControlledMagnetIds;
+
+    bool killed = false;
 };
 
 
