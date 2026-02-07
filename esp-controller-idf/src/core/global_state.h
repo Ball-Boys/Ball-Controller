@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <unordered_map>
 
+// Forward declarations and includes kept minimal to avoid circular dependencies.
+
 
 struct Orientation {
     float w;
@@ -72,19 +74,29 @@ class MagnetInfo {
         std::vector<CurrentInfo> activeCurrentHistory;
         std::vector<ControlOutputs> controlHistory;
         std::vector<CurrentInfo> flushedCurrentHistory;
+
+        int controlIntegral = 0;
+        
     public:
         const int id;
         const Vector3 position;
 
+        
+        const float kp = 50.0f;
+        const float ki = 15000.0f;
+        const float dt; // 300 microseconds
+
         const ADCAddress adcAddress;
         const PWMAddress pwmAddress;
 
-        MagnetInfo(int id, const Vector3& position, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
-            : id(id), position(position), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
+        MagnetInfo(int id, const Vector3& position, const float dt, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
+            : id(id), position(position), dt(dt), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
 
         const std::vector<CurrentInfo>& getCurrentHistory() const {
             return activeCurrentHistory;
         }
+
+
 
         const std::vector<ControlOutputs>& getControlHistory() const {
             return controlHistory;
@@ -95,6 +107,12 @@ class MagnetInfo {
                                          activeCurrentHistory.begin(), 
                                          activeCurrentHistory.end());
             activeCurrentHistory.clear();
+
+            controlIntegral = 0;
+        }
+
+        const std::vector<CurrentInfo>& getFlushedCurrentHistory() const {
+            return flushedCurrentHistory;
         }
 
         
@@ -135,11 +153,29 @@ class MagnetInfo {
 
         void setControlValue(const ControlOutputs& value) {
             controlHistory.push_back(value);
+            flushCurrentHistory();
         }
 
         void zeroControl() {
-            controlHistory.push_back(ControlOutputs::zero(id));
+            setControlValue(ControlOutputs::zero(id));
         }
+
+        float getNextCurrentValuePI() {
+            float error = controlHistory.back().current_value - activeCurrentHistory.back().current;
+            float new_i = ki * error * dt;
+
+            // TODO: ask Josh the purpose of this clipping
+            controlIntegral += new_i;
+            float p_term = kp * error;
+            float i_term = controlIntegral;
+            float output = p_term + i_term;
+
+            
+            // TODO: add bounds here 
+            return (int)(output);
+        }
+
+
 };
 
 struct MagnetList {
@@ -149,7 +185,7 @@ struct MagnetList {
     MagnetList() = default;
     MagnetList(std::unordered_map<int, MagnetInfo> mags) : magnets(mags) {}
 
-    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount>& config) {
+    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount>& config, float dt) {
         std::unordered_map<int, MagnetInfo> magnets;
         for (const auto& item : config) {
             int id = std::get<0>(item);
@@ -159,15 +195,22 @@ struct MagnetList {
             if (id <= 0 || id > static_cast<int>(kMagnetCount)) {
                 throw std::out_of_range("Magnet ID out of range in configuration");
             }
-            magnets.emplace(id, MagnetInfo(id, pos, adcAddr, pwmAddr));
+            magnets.emplace(id, MagnetInfo(id, pos, dt, adcAddr, pwmAddr));
         }
         return MagnetList{magnets};
     }
 
+    MagnetInfo& getMagnetById(int id) {
+        auto it = magnets.find(id);
+        if (it == magnets.end()) {
+            throw std::out_of_range("Magnet ID not found: " + std::to_string(id));
+        }
+        return it->second;
+    }
     const MagnetInfo& getMagnetById(int id) const {
         auto it = magnets.find(id);
         if (it == magnets.end()) {
-            throw std::out_of_range("Magnet ID not found");
+            throw std::out_of_range("Magnet ID not found: " + std::to_string(id));
         }
         return it->second;
     }
@@ -178,6 +221,9 @@ struct MagnetList {
 class GlobalState {
 public:
     static GlobalState& instance();
+
+    float fastLoopTime = 0.0003f; // 300 microseconds
+    float slowLoopTime = 0.01f; // 10 milliseconds
 
     // functions get values about the orientation
     Orientation getOrientation() const;
@@ -212,8 +258,10 @@ public:
     const std::vector<CurrentInfo>& getCurrentValues(int magnetId, int last_n) const;
     const std::vector<std::vector<CurrentInfo>>& getAllCurrentValues(int last_n) const;
     CurrentInfo getLatestCurrentValues(int magnetId) const;
-    void setCurrentValue(const CurrentInfo& value);
     
+
+
+    std::vector<CurrentInfo> currentControlLoop();
 
     // helper functions to collect magnet info
     PWMAddress getPWMAddress(int magnetId) const;
@@ -231,12 +279,12 @@ private:
     GlobalState(const GlobalState&) = delete;
     GlobalState& operator=(const GlobalState&) = delete;
 
-
+    MagnetList magnetList;
     Orientation offset;
     std::vector<Orientation> orientationHistory;
     std::vector<AngularVelocity> angularVelocityHistory;
-    MagnetList magnetList;
     Vector3 idealDirection;
+    std::vector<int> currentControlledMagnetIds;
 
     bool killed = false;
 };
