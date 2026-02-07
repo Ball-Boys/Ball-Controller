@@ -5,8 +5,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-// Forward declarations and includes kept minimal to avoid circular dependencies.
-
 
 struct Orientation {
     float w;

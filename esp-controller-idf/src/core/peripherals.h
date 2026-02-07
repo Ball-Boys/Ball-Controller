@@ -6,10 +6,6 @@ const int ADC_CHIP_SELECT = 15;
 const int ADC_SENSE_PIN = 12; // MOSI
 const int ADC_SLK_PIN = 14; //SCL
 
-const int I2C_SDA_PIN = 21;
-const int I2C_SCL_PIN = 22;
-const int I2C_CLOCK_HZ = 400000;
-
 static const int PWM_OUTPUT_BOUNDS[2] = {0, 255};
 
 
