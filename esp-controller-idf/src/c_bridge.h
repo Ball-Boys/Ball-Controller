@@ -9,7 +9,7 @@ typedef struct {
     float current;
 } bc_current_info_t;
 
-void bc_init_peripherals(int adc_clock_speed_hz);
+void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate);
 void bc_core_1_loop();
 
 void bc_bench_test_1();

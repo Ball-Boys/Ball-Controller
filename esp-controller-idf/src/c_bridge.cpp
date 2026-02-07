@@ -4,8 +4,8 @@
 #include "core/peripherals.h"
 #include "scripts/bench_test.cpp"
 
-void bc_init_peripherals(int adc_clock_speed_hz) {
-    init_peripherals(adc_clock_speed_hz);
+void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
+    init_peripherals(adc_clock_speed_hz, uart_baud_rate);
 }
 
 void bc_core_1_loop() {
