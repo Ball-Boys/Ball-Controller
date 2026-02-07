@@ -7,6 +7,9 @@
 #include <core/peripherals.h>
 
 #include <vector>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 
 
 namespace {
@@ -67,7 +70,32 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
 
 
 
-inline void serial_print(const char* msg) {
+void serial_print(const char* msg) {
+    if (!msg) {
+        return;
+    }
     uart_write_bytes(UART_NUM_0, msg, strlen(msg));
+}
+
+void serial_printf(const char* fmt, ...) {
+    if (!fmt) {
+        return;
+    }
+
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    int written = vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+
+    if (written <= 0) {
+        return;
+    }
+
+    size_t len = static_cast<size_t>(written);
+    if (len >= sizeof(buffer)) {
+        len = sizeof(buffer) - 1;
+    }
+    uart_write_bytes(UART_NUM_0, buffer, len);
 }
 

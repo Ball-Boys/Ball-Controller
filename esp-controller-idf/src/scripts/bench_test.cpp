@@ -43,7 +43,7 @@ void test_1() {
     int loops = 0;
     // loop though index 0 through 19 magents
     for (int mag_id = 1; mag_id <= 20; ++mag_id) {
-        serial_print("Activating magnet %s", std::to_string(mag_id).c_str());
+        serial_printf("Activating magnet %d\n", mag_id);
         instance.setControl(ControlOutputs(mag_id, 255)); // Set magnet to max power
 
         run_control_loop_for_seconds(instance, 1.0f);
@@ -64,7 +64,7 @@ void test_2() {
     int loops = 0;
     // loop though index 0 through 19 magents
     for (int mag_id = 1; mag_id <= 20; mag_id += 2) {
-        serial_print("Activating magnets %s and %s", std::to_string(mag_id).c_str(), std::to_string(mag_id + 1).c_str());
+        serial_printf("Activating magnets %d and %d\n", mag_id, mag_id + 1);
         instance.setControl(ControlOutputs(mag_id, 255)); // Set magnet to max power
         instance.setControl(ControlOutputs(mag_id + 1, 255)); // Set next magnet to max power
 
@@ -86,7 +86,7 @@ void test_3() {
     // loop though index 0 through 19 magents
     for (int mag_id = 1; mag_id <= 20; ++mag_id) {
         int random_value = rand() % 256; // Generate random value between 0 and 255
-        serial_print("Activating magnet %s with value %s", std::to_string(mag_id).c_str(), std::to_string(random_value).c_str());
+        serial_printf("Activating magnet %d with value %d\n", mag_id, random_value);
         instance.setControl(ControlOutputs(mag_id, random_value)); // Set magnet to random power
 
         run_control_loop_for_seconds(instance, 0.01f);
@@ -105,8 +105,7 @@ void test_4() {
     for (int mag_id = 1; mag_id <= 20; mag_id += 2) {
         int random_value_1 = rand() % 256; // Generate random
         int random_value_2 = rand() % 256; // Generate random value between 0 and 255
-        serial_print("Activating magnets %s and %s with values %s and %s", std::to_string(mag_id).c_str(), std::to_string(mag_id +
-1).c_str(), std::to_string(random_value_1).c_str(), std::to_string(random_value_2).c_str());
+        serial_printf("Activating magnets %d and %d with values %d and %d\n", mag_id, mag_id + 1, random_value_1, random_value_2);
         instance.setControl(ControlOutputs(mag_id, random_value_1)); // Set magnet to random power
         instance.setControl(ControlOutputs(mag_id + 1, random_value_2)); // Set next magnet to random power 
 

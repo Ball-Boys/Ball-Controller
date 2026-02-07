@@ -1,5 +1,6 @@
 #include <driver/spi_master.h>
 #include <driver/i2c.h>
+#include <driver/uart.h>
 #include <unordered_map>
 
 #include "peripherals.h"
@@ -43,12 +44,11 @@ spi_device_handle_t get_adc_device(int adc_gpio_address) {
         init_adc(1000000);
     }
 
-    spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = s_adc_clock_hz > 0 ? s_adc_clock_hz : 1000000,
-        .mode = 0,
-        .spics_io_num = adc_gpio_address,
-        .queue_size = 1,
-    };
+    spi_device_interface_config_t devcfg = {};
+    devcfg.clock_speed_hz = s_adc_clock_hz > 0 ? s_adc_clock_hz : 1000000;
+    devcfg.mode = 0;
+    devcfg.spics_io_num = adc_gpio_address;
+    devcfg.queue_size = 1;
 
     spi_device_handle_t handle = nullptr;
     spi_bus_add_device(HSPI_HOST, &devcfg, &handle);
