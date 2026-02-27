@@ -23,14 +23,31 @@ int read_adc1283_channel(const ADCAddress& adcAddress) {
     tx[0] = static_cast<uint8_t>((adcAddress.channel & 0x0F) << 4);
     tx[1] = 0x00;
 
-    spi_transaction_t t = {};
-    t.length = 16;
-    t.tx_buffer = tx;
-    t.rx_buffer = rx;
+    spi_transaction_t t = {
+        .flags = SPI_TRANS_USE_RXDATA | SPI_TRANS_USE_TXDATA,  // Use internal buffers
+        .length = 16,      // Total bits to transmit
+        .rxlength = 16,    // Bits to receive
+        .tx_buffer = NULL,
+        .rx_buffer = NULL,
+    };
+    
+    // Copy to internal buffers
+    t.tx_data[0] = tx[0];
+    t.tx_data[1] = tx[1];
+    t.tx_data[2] = 0;
+    t.tx_data[3] = 0;
 
-    spi_device_transmit(dev, &t);
+    esp_err_t ret = spi_device_transmit(dev, &t);
+    if (ret != ESP_OK) {
+        serial_printf("SPI error: %d\n", ret);
+        return 0;
+    }
 
-    int value = ((rx[0] & 0x0F) << 8) | rx[1];
+    // Read from internal rx buffer
+    int value = ((t.rx_data[0] & 0x0F) << 8) | t.rx_data[1];
+    serial_printf("ADC ch%d: rx[0]=0x%02X rx[1]=0x%02X value=%d\n", 
+                  adcAddress.channel, t.rx_data[0], t.rx_data[1], value);
+    
     return value;
 }
 }
@@ -52,12 +69,36 @@ std::vector<int> retreveCurrentValueFromADC(std::vector<int> mag_ids) {
 
     }
 
+    // printf("Retrieved current values from ADC for magnet IDs: ");
+    // for (size_t i = 0; i < mag_ids.size(); ++i)
+    // {
+    //     printf("%d ", mag_ids[i]);
+    // }
+    // printf("\nValues: ");
+    // for (const auto& value : currentValues) {
+    //     printf("%d ", value);
+    // }
+    // printf("\n");
+
     return currentValues;
 }
 
 void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
     GlobalState& state = GlobalState::instance();
     const size_t count = std::min(magnetIds.size(), values.size());
+
+
+    // serial_printf("Setting PWM outputs for magnet IDs: ");
+    // for (size_t i = 0; i < count; ++i) {
+    //     serial_printf("%d ", magnetIds[i]);
+    // }
+    // serial_print("\n");
+
+    // serial_printf("With values: ");
+    // for (size_t i = 0; i < count; ++i) {
+    //     serial_printf("%d ", values[i]);
+    // }
+    // serial_print("\n");
 
     for (size_t i = 0; i < count; ++i) {
         int magnetId = magnetIds[i];

@@ -2,7 +2,8 @@
 
 #include "core/global_state.h"
 #include "core/peripherals.h"
-#include "scripts/bench_test.cpp"
+#include "scripts/bench_test.h"
+#include "utils/utils.h"
 
 void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     init_peripherals(adc_clock_speed_hz, uart_baud_rate);
@@ -14,8 +15,14 @@ void bc_core_1_loop() {
     }
 }
 
+void bc_bench_test_0() {
+    test_0();
+    vTaskDelete(NULL);
+}
+
 void bc_bench_test_1() {
     test_1();
+    vTaskDelete(NULL);
 }
 
 void bc_bench_test_2() {
@@ -32,6 +39,10 @@ void bc_bench_test_4() {
 
 void bc_bench_test_5() {
     test_5();
+}
+
+void bc_serial_print(const char* msg) {
+    serial_print(msg);
 }
 
 

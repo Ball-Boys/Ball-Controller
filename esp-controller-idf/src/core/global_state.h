@@ -76,6 +76,8 @@ class MagnetInfo {
         int controlIntegral = 0;
         
     public:
+        static constexpr size_t kMaxCurrentHistorySize = 100;  // Rolling buffer max size
+        
         const int id;
         const Vector3 position;
 
@@ -101,9 +103,9 @@ class MagnetInfo {
         }
 
         void flushCurrentHistory() {
-            flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
-                                         activeCurrentHistory.begin(), 
-                                         activeCurrentHistory.end());
+            // flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
+            //                              activeCurrentHistory.begin(), 
+            //                              activeCurrentHistory.end());
             activeCurrentHistory.clear();
 
             controlIntegral = 0;
@@ -147,6 +149,10 @@ class MagnetInfo {
 
         void setCurrentValue(const CurrentInfo& value) {
             activeCurrentHistory.push_back(value);
+            // Remove oldest entry if size exceeds max
+            if (activeCurrentHistory.size() > kMaxCurrentHistorySize) {
+                activeCurrentHistory.erase(activeCurrentHistory.begin());
+            }
         }
 
         void setControlValue(const ControlOutputs& value) {
@@ -162,14 +168,19 @@ class MagnetInfo {
             float error = controlHistory.back().current_value - activeCurrentHistory.back().current;
             float new_i = ki * error * dt;
 
-            // TODO: ask Josh the purpose of this clipping
+            // Anti-windup: prevent integral from growing too large
             controlIntegral += new_i;
+            if (controlIntegral > 255.0f) controlIntegral = 255.0f;
+            if (controlIntegral < 0.0f) controlIntegral = 0.0f;
+            
             float p_term = kp * error;
             float i_term = controlIntegral;
             float output = p_term + i_term;
 
+            // Clamp output to valid PWM range
+            if (output > 255.0f) output = 255.0f;
+            if (output < 0.0f) output = 0.0f;
             
-            // TODO: add bounds here 
             return (int)(output);
         }
 

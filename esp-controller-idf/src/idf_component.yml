@@ -1,0 +1,4 @@
+dependencies:
+  esp-idf-lib/pca9632: "*"
+  esp-idf-lib/i2cdev: "*"
+  esp-idf-lib/esp_idf_lib_helpers: "*"

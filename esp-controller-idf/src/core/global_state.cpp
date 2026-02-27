@@ -213,6 +213,7 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 
 
 std::vector<CurrentInfo> GlobalState::currentControlLoop() {
+    
 
     // collect the latest control outputs for all magnets
     std::vector<ControlOutputs> latestControls = getLatestControl();
@@ -223,17 +224,18 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
 
     std::vector<int> magnets_to_zero = mag_ids;
 
+    // TODO: bugged code 
     // logically it is really important to set an prevously controlled magnets to 0. 
-    for (const auto& mag_id : currentControlledMagnetIds) {
-        if (std::find(mag_ids.begin(), mag_ids.end(), mag_id) == mag_ids.end()) {
-            // we will need to zero this magnet's control output
-            setControl(ControlOutputs::zero(mag_id));
-            // we also will need to manually set the magnets here to 0 
-            magnets_to_zero.push_back(mag_id);
-        }
-    }
+    // for (const auto& mag_id : currentControlledMagnetIds) {
+    //     if (std::find(mag_ids.begin(), mag_ids.end(), mag_id) == mag_ids.end()) {
+    //         // we will need to zero this magnet's control output
+    //         setControl(ControlOutputs::zero(mag_id));
+    //         // we also will need to manually set the magnets here to 0 
+    //         magnets_to_zero.push_back(mag_id);
+    //     }
+    // }
 
-    setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
+    // setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
 
     currentControlledMagnetIds = mag_ids;
         

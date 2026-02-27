@@ -1,9 +1,11 @@
 #include <driver/spi_master.h>
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <driver/uart.h>
 #include <unordered_map>
+#include <driver/gpio.h>
 
 #include "peripherals.h"
+#include <utils/utils.h>
 
 namespace {
 static bool s_adc_bus_initialized = false;
@@ -11,8 +13,8 @@ static int s_adc_clock_hz = 0;
 static std::unordered_map<int, spi_device_handle_t> s_adc_devices;
 
 static bool s_i2c_initialized = false;
-static constexpr i2c_port_t kI2cPort = I2C_NUM_0;
-static constexpr uint8_t kPca9685BaseAddr = 0x40;
+static i2c_master_bus_handle_t s_i2c_bus = nullptr;
+static std::unordered_map<int, i2c_master_dev_handle_t> s_pwm_devices;
 }
 
 void init_adc(int clock_speed_hz) {
@@ -44,11 +46,22 @@ spi_device_handle_t get_adc_device(int adc_gpio_address) {
         init_adc(1000000);
     }
 
-    spi_device_interface_config_t devcfg = {};
-    devcfg.clock_speed_hz = s_adc_clock_hz > 0 ? s_adc_clock_hz : 1000000;
-    devcfg.mode = 0;
-    devcfg.spics_io_num = adc_gpio_address;
-    devcfg.queue_size = 1;
+    spi_device_interface_config_t devcfg = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
+        .mode = 0,
+        .duty_cycle_pos = 0,
+        .cs_ena_pretrans = 0,
+        .cs_ena_posttrans = 0,
+        .clock_speed_hz = s_adc_clock_hz > 0 ? s_adc_clock_hz : 1000000,
+        .input_delay_ns = 0,
+        .spics_io_num = adc_gpio_address,
+        .flags = 0,
+        .queue_size = 1,
+        .pre_cb = NULL,
+        .post_cb = NULL,
+    };
 
     spi_device_handle_t handle = nullptr;
     spi_bus_add_device(HSPI_HOST, &devcfg, &handle);
@@ -76,20 +89,72 @@ void init_pwm_driver() {
         return;
     }
 
-    i2c_config_t conf = {};
-    conf.mode = I2C_MODE_MASTER;
-    conf.sda_io_num = I2C_SDA_PIN;
-    conf.scl_io_num = I2C_SCL_PIN;
-    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = I2C_CLOCK_HZ;
+    i2c_master_bus_config_t bus_cfg = {};
+    bus_cfg.i2c_port = I2C_NUM_0;
+    bus_cfg.sda_io_num = I2C_SDA_PIN;
+    bus_cfg.scl_io_num = I2C_SCL_PIN;
+    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
+    bus_cfg.glitch_ignore_cnt = 7;
+    bus_cfg.intr_priority = 0;
+    bus_cfg.trans_queue_depth = 8;
+    bus_cfg.flags.enable_internal_pullup = true;
 
-    i2c_param_config(kI2cPort, &conf);
-    i2c_driver_install(kI2cPort, conf.mode, 0, 0, 0);
+    i2c_new_master_bus(&bus_cfg, &s_i2c_bus);
     s_i2c_initialized = true;
+
+    // Set GPIO 13 to LOW
+    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_13, 0);
+
+    // Initialize both PCA9685 devices (0x40 and 0x41)
+    const uint8_t addresses[] = {0x40, 0x41};
+    for (uint8_t addr : addresses) {
+        i2c_device_config_t dev_cfg = {};
+        dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+        dev_cfg.device_address = addr;
+        dev_cfg.scl_speed_hz = I2C_CLOCK_HZ;
+
+        i2c_master_dev_handle_t handle = nullptr;
+        esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &handle);
+        
+        if (err == ESP_OK && handle != nullptr) {
+            // Wake up the PCA9685 chip (it starts in sleep mode by default)
+            // MODE1 register (0x00): RESTART (0x80) | AUTO_INCREMENT (0x20) = 0xA0
+            uint8_t wakeup_data[] = {0x00, 0xA0};
+            i2c_master_transmit(handle, wakeup_data, sizeof(wakeup_data), 10);
+            
+            // Store the device handle using the I2C address as the key
+            s_pwm_devices.emplace(addr, handle);
+            
+            serial_print("Initialized PCA9685 at I2C address 0x");
+            serial_printf("%02X", addr);
+            serial_print("\n");
+        } else {
+            serial_print("Failed to initialize PCA9685 at 0x");
+            serial_printf("%02X", addr);
+            serial_print("\n");
+        }
+    }
 }
 
-void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
+static i2c_master_dev_handle_t get_pwm_device(int driver_i2c_address) {
+    if (!s_i2c_initialized) {
+        init_pwm_driver();
+    }
+
+    auto it = s_pwm_devices.find(driver_i2c_address);
+    if (it != s_pwm_devices.end()) {
+        return it->second;
+    }
+
+    // Device not found - this shouldn't happen if init_pwm_driver() worked correctly
+    serial_print("ERROR: PCA9685 device at 0x");
+    serial_printf("%02X", driver_i2c_address);
+    serial_print(" not found. Was it initialized?\n");
+    return nullptr;
+}
+
+void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
     if (!s_i2c_initialized) {
         init_pwm_driver();
     }
@@ -98,16 +163,27 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
         return;
     }
 
-    if (value_0_255 < PWM_OUTPUT_BOUNDS[0]) {
-        value_0_255 = PWM_OUTPUT_BOUNDS[0];
-    }
-    if (value_0_255 > PWM_OUTPUT_BOUNDS[1]) {
-        value_0_255 = PWM_OUTPUT_BOUNDS[1];
+    if (value_0_4095 < 0) {
+        value_0_4095 = 0;
+    } else if (value_0_4095 > 4095) {
+        value_0_4095 = 4095;
     }
 
-    const uint8_t i2c_addr = static_cast<uint8_t>(kPca9685BaseAddr + driver_i2c_address);
+    const i2c_master_dev_handle_t dev = get_pwm_device(driver_i2c_address);
+    if (dev == nullptr) {
+        serial_print("ERROR: Cannot set PWM - device handle is null\n");
+        return;
+    }
+    
     const int on_count = 0;
-    const int off_count = (value_0_255 * 4095) / 255;
+    const int off_count = value_0_4095;
+    serial_print("Setting PWM: driver_i2c_address=0x");
+    serial_printf("%02X", driver_i2c_address);
+    serial_print(", channel=");
+    serial_printf("%d", channel);
+    serial_print(", value_0_4095=");
+    serial_printf("%d", value_0_4095);
+    serial_print("\n");
 
     const uint8_t reg = static_cast<uint8_t>(0x06 + 4 * channel); // LED0_ON_L
 
@@ -119,7 +195,7 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
         static_cast<uint8_t>((off_count >> 8) & 0x0F)
     };
 
-    i2c_master_write_to_device(kI2cPort, i2c_addr, data, sizeof(data), pdMS_TO_TICKS(10));
+    i2c_master_transmit(dev, data, sizeof(data), 10);
 }
 
 void init_imu() {
