@@ -225,7 +225,6 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
         mag_ids.push_back(control.magnetId);
     }
     int64_t collect_end = esp_timer_get_time();
-    // printf("[COLLECT] Latest controls gathered | Magnets: %zu | Time: %lld µs\n", mag_ids.size(), (collect_end - collect_start));
 
     std::vector<int> magnets_to_zero = mag_ids;
 
