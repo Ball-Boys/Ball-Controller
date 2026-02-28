@@ -79,7 +79,7 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
         int value = values[i];
         PWMAddress pwmAddress = state.getPWMAddress(magnetId);
         pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, value);
-        printf("Set PWM for magnet %d (I2C addr: 0x%02X, channel: %d) to value %d\n", magnetId, pwmAddress.driver_i2c_address, pwmAddress.channel, value);
+        // printf("Set PWM for magnet %d (I2C addr: 0x%02X, channel: %d) to value %d\n", magnetId, pwmAddress.driver_i2c_address, pwmAddress.channel, value);
 
     }
 
