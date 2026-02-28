@@ -84,7 +84,7 @@ class MagnetInfo {
 
         
         const float kp = 300.0f;
-        const float ki = 1500.0f;
+        const float ki = 15000.0f;
         const float dt; // 300 microseconds
 
         const ADCAddress adcAddress;
@@ -172,7 +172,7 @@ class MagnetInfo {
             // Anti-windup: prevent integral from growing too large
             controlIntegral += new_i;
             if (controlIntegral > 4095.0f) controlIntegral = 4095.0f;
-            if (controlIntegral < 0.0f) controlIntegral = 0.0f;
+            if (controlIntegral < -4095.0f) controlIntegral = -4095.0f;
             
             float p_term = kp * error;
             float i_term = controlIntegral;
@@ -232,7 +232,7 @@ class GlobalState {
 public:
     static GlobalState& instance();
 
-    float fastLoopTime = 0.0003f; // 300 microseconds
+    float fastLoopTime = 0.000650f; // 650 microseconds
     float slowLoopTime = 0.01f; // 10 milliseconds
 
     // functions get values about the orientation
@@ -297,12 +297,7 @@ private:
     std::vector<int> currentControlledMagnetIds;
 
     // Timing instrumentation
-    std::chrono::steady_clock::time_point loop_start;
-    std::chrono::steady_clock::time_point loop_end;
-    std::chrono::steady_clock::time_point adc_read_start;
-    std::chrono::steady_clock::time_point adc_read_end;
-    std::chrono::steady_clock::time_point pwm_set_start;
-    std::chrono::steady_clock::time_point pwm_set_end;
+    
 
     bool killed = false;
 };

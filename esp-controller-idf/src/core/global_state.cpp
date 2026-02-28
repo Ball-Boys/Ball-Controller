@@ -215,16 +215,13 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 
 std::vector<CurrentInfo> GlobalState::currentControlLoop() {
     int64_t loop_start = esp_timer_get_time();
-    // printf("\n=== Control Loop Iteration Started ===\n");
     
-    // collect the latest control outputs for all magnets
-    int64_t collect_start = esp_timer_get_time();
+    
     std::vector<ControlOutputs> latestControls = getLatestControl();
     std::vector<int> mag_ids;
     for (const auto& control : latestControls) {
         mag_ids.push_back(control.magnetId);
     }
-    int64_t collect_end = esp_timer_get_time();
 
     std::vector<int> magnets_to_zero = mag_ids;
 
@@ -244,16 +241,15 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
     currentControlledMagnetIds = mag_ids;
         
     // Read ADC values
-    int64_t adc_start = esp_timer_get_time();
     std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
-    int64_t adc_end = esp_timer_get_time();
+
     // printf("[ADC] Current values read from ADC | Time: %lld µs\n", (adc_end - adc_start));
     
     std::vector<CurrentInfo> currentInfos;
     std::vector<int> newPWMSignals;
 
     // Process each magnet and calculate control signals
-    int64_t process_start = esp_timer_get_time();
+
     for (size_t i = 0; i < mag_ids.size(); ++i) {
         int magnetId = mag_ids[i];
         float currentValue = currents[i];
@@ -264,17 +260,13 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
         int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
         newPWMSignals.push_back(newPWMSignal);
     }
-    int64_t process_end = esp_timer_get_time();
-    // printf("[PROCESS] Magnet control calculations complete | Magnets: %zu | Time: %lld µs\n", mag_ids.size(), (process_end - process_start));
 
-    // Set PWM outputs
-    int64_t pwm_start = esp_timer_get_time();
     setPWMOutputs(mag_ids, newPWMSignals);
-    int64_t pwm_end = esp_timer_get_time();
-    // printf("[PWM] PWM outputs updated | Time: %lld µs\n", (pwm_end - pwm_start));
+
 
     int64_t loop_end = esp_timer_get_time();
     int64_t total_time = (loop_end - loop_start);
+
     // printf("=== Control Loop Complete | Total Time: %lld µs ===\n\n", total_time);
 
     return currentInfos;
