@@ -120,14 +120,34 @@ void test_1() {
     while (true) {
         for (int mag_id = 1; mag_id <= 1; ++mag_id) {
             serial_printf("Activating magnet %d\n", mag_id);
-            instance.setControl(ControlOutputs(mag_id, 8)); // Set magnet to mid power
+            instance.setControl(ControlOutputs(mag_id, 10)); // Set magnet to mid power
             serial_printf("Running control loop for 1 second with magnet %d on\n", mag_id);
-            run_control_loop_for_seconds(instance, 1.0f);
+            run_control_loop_for_seconds(instance, 5.0f);
             instance.setControl(ControlOutputs::zero(mag_id)); // Set magnet back to 0
         }
     }
     serial_print("Test 1 complete: Magnet sweep\n");
 }
+
+void test_magnet_step() {
+    GlobalState& instance = GlobalState::instance();
+
+    float loop_iterations = 1.0f / instance.fastLoopTime; // Set loop iterations based on fast loop time
+
+    int loops = 0;
+    // loop though index 0 through 19 magents
+    while (true) {
+        for (int mag_id = 1; mag_id <= 1; ++mag_id) {
+            for (int i = 0; i < 10; ++i) {
+                
+                instance.setControl(ControlOutputs(mag_id, i)); // Set magnet to random power
+
+                run_control_loop_for_seconds(instance, 0.01f);
+            }
+        }
+    }
+}
+
 
 
 // in test 2 we will do a very similar process to the one above but we will turn on 2 magnets at a time.

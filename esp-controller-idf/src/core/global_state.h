@@ -171,7 +171,7 @@ class MagnetInfo {
 
             // Anti-windup: prevent integral from growing too large
             controlIntegral += new_i;
-            if (controlIntegral > 255.0f) controlIntegral = 255.0f;
+            if (controlIntegral > 4095.0f) controlIntegral = 4095.0f;
             if (controlIntegral < 0.0f) controlIntegral = 0.0f;
             
             float p_term = kp * error;
@@ -179,7 +179,7 @@ class MagnetInfo {
             float output = p_term + i_term;
 
             // Clamp output to valid PWM range
-            if (output > 255.0f) output = 255.0f;
+            if (output > 4095.0f) output = 4095.0f;
             if (output < 0.0f) output = 0.0f;
             
             return (int)(output);

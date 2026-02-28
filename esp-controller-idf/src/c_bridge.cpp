@@ -36,6 +36,11 @@ void bc_bench_test_1() {
     vTaskDelete(NULL);
 }
 
+void bc_bench_test_magnet_step() {
+    test_magnet_step();
+    vTaskDelete(NULL);
+}
+
 void bc_bench_test_2() {
     test_2();
     vTaskDelete(NULL);
@@ -48,6 +53,7 @@ void bc_bench_test_3() {
 
 void bc_bench_test_4() {
     test_4();
+    vTaskDelete(NULL);
 }
 
 void bc_bench_test_5() {
