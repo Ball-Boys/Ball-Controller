@@ -166,13 +166,12 @@ void init_pwm_driver() {
         esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &handle);
         
         if (err == ESP_OK && handle != nullptr) {
-            
 
             // Calculation: (25MHz / (4096 * 50Hz)) - 1 = 121 (0x79)
-            uint8_t prescale_val = 0x20; 
-            uint8_t sleep_mode   = 0x11; // bit4=1 (Sleep), bit0=1 (ALLCALL)
-            uint8_t wake_mode    = 0x01; // bit4=0 (Wake),  bit0=1 (ALLCALL)
-            uint8_t restart_mode = 0x81; // bit7=1 (Restart), bit0=1 (ALLCALL)
+            uint8_t prescale_val = 0x20;
+            uint8_t sleep_mode   = 0x31; // bit5=1 (AI), bit4=1 (Sleep), bit0=1 (ALLCALL)
+            uint8_t wake_mode    = 0x21; // bit5=1 (AI), bit4=0 (Wake),  bit0=1 (ALLCALL)
+            uint8_t restart_mode = 0xA1; // bit7=1 (Restart), bit5=1 (AI), bit0=1 (ALLCALL)
             uint8_t PCA9685_MODE1 = 0x00;
             uint8_t PCA9685_PRESCALE = 0xFE;
 

@@ -8,7 +8,7 @@
 void app_main() {
 
     bc_init_peripherals(1000000, 115200); // Initialize peripherals with a 5 MHz clock speed for the ADC
-    xTaskCreatePinnedToCore(bc_bench_test_0, "bench_test_1", 32768, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(bc_bench_test_1, "bench_test_1", 32768, NULL, 5, NULL, 1);
     printf("Started ADC isolated benchmark test on core 1\n");
     
     while (true) {

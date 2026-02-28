@@ -117,13 +117,14 @@ void test_1() {
 
     int loops = 0;
     // loop though index 0 through 19 magents
-    for (int mag_id = 1; mag_id <= 1; ++mag_id) {
-        serial_printf("Activating magnet %d\n", mag_id);
-        instance.setControl(ControlOutputs(mag_id, 3)); // Set magnet to mid power
-        serial_printf("Running control loop for 1 second with magnet %d on\n", mag_id);
-        run_control_loop_for_seconds(instance, 1.0f);
-        instance.setControl(ControlOutputs::zero(mag_id)); // Set magnet back to 0
-
+    while (true) {
+        for (int mag_id = 1; mag_id <= 1; ++mag_id) {
+            serial_printf("Activating magnet %d\n", mag_id);
+            instance.setControl(ControlOutputs(mag_id, 3)); // Set magnet to mid power
+            serial_printf("Running control loop for 1 second with magnet %d on\n", mag_id);
+            run_control_loop_for_seconds(instance, 1.0f);
+            instance.setControl(ControlOutputs::zero(mag_id)); // Set magnet back to 0
+        }
     }
     serial_print("Test 1 complete: Magnet sweep\n");
 }

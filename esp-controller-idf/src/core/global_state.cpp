@@ -2,6 +2,7 @@
 #include "magnet_config.h"
 
 #include "utils/utils.h"
+#include <esp_timer.h>
 
 GlobalState& GlobalState::instance() {
     static GlobalState singleton(MAGNET_CONFIG);
@@ -213,7 +214,7 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 
 
 std::vector<CurrentInfo> GlobalState::currentControlLoop() {
-    loop_start = std::chrono::steady_clock::now();
+    int64_t loop_start = esp_timer_get_time();
     printf("\n=== Control Loop Iteration Started ===\n");
     
     // collect the latest control outputs for all magnets
@@ -257,9 +258,9 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
 
     setPWMOutputs(mag_ids, newPWMSignals);
 
-    loop_end = std::chrono::steady_clock::now();
-    float total_time = std::chrono::duration<float>(loop_end - loop_start).count() * 1000.0f; // ms
-    printf("=== Control Loop Complete | Total Time: %.4f ms ===\n\n", total_time);
+    int64_t loop_end = esp_timer_get_time();
+    int64_t total_time = (loop_end - loop_start); // micro s
+    printf("=== Control Loop Complete | Total Time: %lld micro s ===\n\n", total_time);
 
     return currentInfos;
 }
