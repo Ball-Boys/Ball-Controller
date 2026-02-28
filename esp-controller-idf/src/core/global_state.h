@@ -109,7 +109,7 @@ class MagnetInfo {
             //                              activeCurrentHistory.end());
             activeCurrentHistory.clear();
             // RESTING THE integral terms someitmes causes the PWM driver to cvhange i frequency (has not been observed since)
-            controlIntegral = 0;
+            // controlIntegral = 0;
         }
 
         const std::vector<CurrentInfo>& getFlushedCurrentHistory() const {
