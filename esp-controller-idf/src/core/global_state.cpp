@@ -213,8 +213,9 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 
 
 std::vector<CurrentInfo> GlobalState::currentControlLoop() {
+    loop_start = std::chrono::steady_clock::now();
+    printf("\n=== Control Loop Iteration Started ===\n");
     
-
     // collect the latest control outputs for all magnets
     std::vector<ControlOutputs> latestControls = getLatestControl();
     std::vector<int> mag_ids;
@@ -239,7 +240,7 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
 
     currentControlledMagnetIds = mag_ids;
         
-    std::vector<int> currents = retreveCurrentValueFromADC(mag_ids);
+    std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
     std::vector<CurrentInfo> currentInfos;
     std::vector<int> newPWMSignals;
 
@@ -255,6 +256,10 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
     }
 
     setPWMOutputs(mag_ids, newPWMSignals);
+
+    loop_end = std::chrono::steady_clock::now();
+    float total_time = std::chrono::duration<float>(loop_end - loop_start).count() * 1000.0f; // ms
+    printf("=== Control Loop Complete | Total Time: %.4f ms ===\n\n", total_time);
 
     return currentInfos;
 }

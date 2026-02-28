@@ -1,7 +1,7 @@
 #include <vector>
 
 
-std::vector<int> retreveCurrentValueFromADC(std::vector<int> mag_ids);
+std::vector<float> retreveCurrentValueFromADC(std::vector<int> mag_ids);
 
 void setPWMOutputs(std::vector<int> magnetId, std::vector<int> value);
 

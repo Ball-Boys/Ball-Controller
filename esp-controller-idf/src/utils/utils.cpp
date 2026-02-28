@@ -14,71 +14,43 @@
 
 namespace {
 int read_adc1283_channel(const ADCAddress& adcAddress) {
-    spi_device_handle_t dev = get_adc_device(adcAddress.adc_gpio_address);
-
-    uint8_t tx[2] = {0};
-    uint8_t rx[2] = {0};
-
-    // ADC1283: assume MSB-first, 12-bit data. Channel is encoded in high bits.
-    tx[0] = static_cast<uint8_t>((adcAddress.channel & 0x0F) << 4);
-    tx[1] = 0x00;
-
-    spi_transaction_t t = {
-        .flags = SPI_TRANS_USE_RXDATA | SPI_TRANS_USE_TXDATA,  // Use internal buffers
-        .length = 16,      // Total bits to transmit
-        .rxlength = 16,    // Bits to receive
-        .tx_buffer = NULL,
-        .rx_buffer = NULL,
-    };
     
-    // Copy to internal buffers
-    t.tx_data[0] = tx[0];
-    t.tx_data[1] = tx[1];
-    t.tx_data[2] = 0;
-    t.tx_data[3] = 0;
-
-    esp_err_t ret = spi_device_transmit(dev, &t);
-    if (ret != ESP_OK) {
-        serial_printf("SPI error: %d\n", ret);
-        return 0;
-    }
-
-    // Read from internal rx buffer
-    int value = ((t.rx_data[0] & 0x0F) << 8) | t.rx_data[1];
-    serial_printf("ADC ch%d: rx[0]=0x%02X rx[1]=0x%02X value=%d\n", 
-                  adcAddress.channel, t.rx_data[0], t.rx_data[1], value);
+    int value = adc1283_read(adcAddress.adc_gpio_address, adcAddress.channel);
     
     return value;
 }
 }
 
-std::vector<int> retreveCurrentValueFromADC(std::vector<int> mag_ids) {
+float convert_adc_value_to_current(u_int16_t adc_value) {
+    const float max_adc_value = 4095.0f;
+    const float max_voltage = 3.3f; // Max voltage
+
+    return (adc_value / max_adc_value) * max_voltage / 50 / 0.005;
+}
+
+
+std::vector<float> retreveCurrentValueFromADC(std::vector<int> mag_ids) {
     GlobalState& state = GlobalState::instance();
     std::vector<ADCAddress> adcAddresses;
-    std::vector<int> currentValues;
+    std::vector<float> currentValues;
+
+    
 
     for (const auto& mag_id : mag_ids) {
         adcAddresses.push_back(state.getADCAddress(mag_id));
     }
+    
 
     for (size_t i = 0; i < mag_ids.size(); ++i) {
         int magnetId = mag_ids[i];
         ADCAddress adcAddress = adcAddresses[i];
         (void)magnetId;
-        currentValues.push_back(read_adc1283_channel(adcAddress));
-
+        uint16_t raw_value = read_adc1283_channel(adcAddress);
+        float current = convert_adc_value_to_current(raw_value);
+        currentValues.push_back(current);
     }
 
-    // printf("Retrieved current values from ADC for magnet IDs: ");
-    // for (size_t i = 0; i < mag_ids.size(); ++i)
-    // {
-    //     printf("%d ", mag_ids[i]);
-    // }
-    // printf("\nValues: ");
-    // for (const auto& value : currentValues) {
-    //     printf("%d ", value);
-    // }
-    // printf("\n");
+
 
     return currentValues;
 }
@@ -86,6 +58,7 @@ std::vector<int> retreveCurrentValueFromADC(std::vector<int> mag_ids) {
 void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
     GlobalState& state = GlobalState::instance();
     const size_t count = std::min(magnetIds.size(), values.size());
+
 
 
     // serial_printf("Setting PWM outputs for magnet IDs: ");
@@ -100,11 +73,14 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
     // }
     // serial_print("\n");
 
+
     for (size_t i = 0; i < count; ++i) {
         int magnetId = magnetIds[i];
         int value = values[i];
         PWMAddress pwmAddress = state.getPWMAddress(magnetId);
         pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, value);
+        printf("Set PWM for magnet %d (I2C addr: 0x%02X, channel: %d) to value %d\n", magnetId, pwmAddress.driver_i2c_address, pwmAddress.channel, value);
+
     }
 
 }

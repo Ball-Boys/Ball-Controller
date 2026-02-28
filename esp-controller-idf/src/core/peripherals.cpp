@@ -6,10 +6,9 @@
 
 #include "peripherals.h"
 #include <utils/utils.h>
-
 namespace {
 static bool s_adc_bus_initialized = false;
-static int s_adc_clock_hz = 0;
+static int s_adc_clock_hz = 10000000; // Default to 10 MHz
 static std::unordered_map<int, spi_device_handle_t> s_adc_devices;
 
 static bool s_i2c_initialized = false;
@@ -17,56 +16,105 @@ static i2c_master_bus_handle_t s_i2c_bus = nullptr;
 static std::unordered_map<int, i2c_master_dev_handle_t> s_pwm_devices;
 }
 
-void init_adc(int clock_speed_hz) {
-    if (s_adc_bus_initialized) {
-        s_adc_clock_hz = clock_speed_hz;
-        return;
+void init_adc(int clock_speed_hz, gpio_num_t chip_select_pin) {
+
+    // Configure CS as GPIO output (manual control)
+    gpio_config_t io_cfg = {
+        .pin_bit_mask = 1ULL << chip_select_pin,
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    gpio_config(&io_cfg);
+
+    gpio_set_level(chip_select_pin, 1); // Set CS high (inactive)
+
+    // Initialize SPI bus only once
+    if (!s_adc_bus_initialized) {
+        // SPI bus config
+        spi_bus_config_t buscfg = {
+            .mosi_io_num = ADC_MOSI_PIN,
+            .miso_io_num = ADC_MISO_PIN,
+            .sclk_io_num = ADC_SLK_PIN,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 4,
+        };
+
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_DISABLED));
+        s_adc_bus_initialized = true;
     }
 
-    spi_bus_config_t buscfg = {
-        .mosi_io_num = ADC_SENSE_PIN,
-        .miso_io_num = ADC_CHANNEL_SELECT,
-        .sclk_io_num = ADC_SLK_PIN,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
+    // Device config
+    spi_device_interface_config_t devcfg = {
+        .mode = 0,
+        .clock_speed_hz = clock_speed_hz,
+        .spics_io_num = -1,  
+        .flags = SPI_DEVICE_NO_DUMMY,
+        .queue_size = 1,
     };
 
-    s_adc_clock_hz = clock_speed_hz;
-    spi_bus_initialize(HSPI_HOST, &buscfg, SPI_DMA_CH_AUTO);
-    s_adc_bus_initialized = true;
+    spi_device_handle_t adc_handle;
+    ESP_ERROR_CHECK(spi_bus_add_device(SPI2_HOST, &devcfg, &adc_handle));
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    s_adc_devices.emplace(chip_select_pin, adc_handle);
 }
 
-spi_device_handle_t get_adc_device(int adc_gpio_address) {
+spi_device_handle_t get_adc_device(gpio_num_t adc_gpio_address) {
     auto it = s_adc_devices.find(adc_gpio_address);
     if (it != s_adc_devices.end()) {
         return it->second;
     }
 
     if (!s_adc_bus_initialized) {
-        init_adc(1000000);
+        init_adc(s_adc_clock_hz, adc_gpio_address);
     }
 
-    spi_device_interface_config_t devcfg = {
-        .command_bits = 0,
-        .address_bits = 0,
-        .dummy_bits = 0,
-        .mode = 0,
-        .duty_cycle_pos = 0,
-        .cs_ena_pretrans = 0,
-        .cs_ena_posttrans = 0,
-        .clock_speed_hz = s_adc_clock_hz > 0 ? s_adc_clock_hz : 1000000,
-        .input_delay_ns = 0,
-        .spics_io_num = adc_gpio_address,
-        .flags = 0,
-        .queue_size = 1,
-        .pre_cb = NULL,
-        .post_cb = NULL,
+    
+    return s_adc_devices.find(adc_gpio_address)->second;
+}
+
+static uint8_t spi_xfer(gpio_num_t chip_select, uint8_t data)
+{
+    spi_transaction_t t = {
+        .length = 8,
+        .tx_buffer = &data,
+        .rx_buffer = NULL
     };
 
-    spi_device_handle_t handle = nullptr;
-    spi_bus_add_device(HSPI_HOST, &devcfg, &handle);
-    s_adc_devices.emplace(adc_gpio_address, handle);
-    return handle;
+    uint8_t rx = 0;
+    t.rx_buffer = &rx;
+
+    spi_device_handle_t adc_handle = get_adc_device(chip_select);
+
+    ESP_ERROR_CHECK(spi_device_transmit(adc_handle, &t));
+    return rx;
+}
+
+uint16_t adc1283_read(gpio_num_t chip_select, int channel)
+{
+    if (channel > 7) channel = 7;
+
+    gpio_set_level(chip_select, 0);
+    esp_rom_delay_us(1);
+
+    uint8_t control = (channel << 3);
+    spi_xfer(chip_select, control);
+
+    // Discard old result
+    spi_xfer(chip_select, 0x00);
+
+    uint8_t msb = spi_xfer(chip_select, 0x00);
+    uint8_t lsb = spi_xfer(chip_select, 0x00);
+
+    gpio_set_level(chip_select, 1);
+
+    // uint16_t raw = ((uint16_t)msb << 8) | lsb;
+    // return raw & 0xFFFF;
+    uint16_t raw = ((uint16_t)msb << 8) | lsb; // 16-bit combined
+    // uint8_t top8 = (raw >> 4) & 0xFF;          // shift right 4 bits to keep bits 11..4
+    // return top8;
+    return raw;
 }
 
 void serial_init(int baud_rate) {
@@ -96,7 +144,7 @@ void init_pwm_driver() {
     bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
     bus_cfg.glitch_ignore_cnt = 7;
     bus_cfg.intr_priority = 0;
-    bus_cfg.trans_queue_depth = 8;
+    bus_cfg.trans_queue_depth = 22;
     bus_cfg.flags.enable_internal_pullup = true;
 
     i2c_new_master_bus(&bus_cfg, &s_i2c_bus);
@@ -118,10 +166,37 @@ void init_pwm_driver() {
         esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &handle);
         
         if (err == ESP_OK && handle != nullptr) {
-            // Wake up the PCA9685 chip (it starts in sleep mode by default)
-            // MODE1 register (0x00): RESTART (0x80) | AUTO_INCREMENT (0x20) = 0xA0
-            uint8_t wakeup_data[] = {0x00, 0xA0};
-            i2c_master_transmit(handle, wakeup_data, sizeof(wakeup_data), 10);
+            
+
+            // Calculation: (25MHz / (4096 * 50Hz)) - 1 = 121 (0x79)
+            uint8_t prescale_val = 0x20; 
+            uint8_t sleep_mode   = 0x11; // bit4=1 (Sleep), bit0=1 (ALLCALL)
+            uint8_t wake_mode    = 0x01; // bit4=0 (Wake),  bit0=1 (ALLCALL)
+            uint8_t restart_mode = 0x81; // bit7=1 (Restart), bit0=1 (ALLCALL)
+            uint8_t PCA9685_MODE1 = 0x00;
+            uint8_t PCA9685_PRESCALE = 0xFE;
+
+            // 1. Put to Sleep (Required to change frequency)
+            uint8_t cmd_sleep[] = {PCA9685_MODE1, sleep_mode};
+            i2c_master_transmit(handle, cmd_sleep, 2, 10);
+
+            // 2. Set the Frequency
+            uint8_t cmd_freq[] = {PCA9685_PRESCALE, prescale_val};
+            i2c_master_transmit(handle, cmd_freq, 2, 10);
+
+            // 3. Wake up
+            uint8_t cmd_wake[] = {PCA9685_MODE1, wake_mode};
+            i2c_master_transmit(handle, cmd_wake, 2, 10);
+
+            // 4. Critical: Wait for the internal oscillator to stabilize
+            // Using a 1ms delay to be safe (datasheet asks for 500us)
+            vTaskDelay(pdMS_TO_TICKS(5)); 
+
+            // 5. Finalize Restart
+            uint8_t cmd_restart[] = {PCA9685_MODE1, restart_mode};
+            i2c_master_transmit(handle, cmd_restart, 2, 10);
+
+            
             
             // Store the device handle using the I2C address as the key
             s_pwm_devices.emplace(addr, handle);
@@ -177,13 +252,6 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
     
     const int on_count = 0;
     const int off_count = value_0_4095;
-    serial_print("Setting PWM: driver_i2c_address=0x");
-    serial_printf("%02X", driver_i2c_address);
-    serial_print(", channel=");
-    serial_printf("%d", channel);
-    serial_print(", value_0_4095=");
-    serial_printf("%d", value_0_4095);
-    serial_print("\n");
 
     const uint8_t reg = static_cast<uint8_t>(0x06 + 4 * channel); // LED0_ON_L
 
@@ -198,6 +266,7 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
     i2c_master_transmit(dev, data, sizeof(data), 10);
 }
 
+
 void init_imu() {
 
 }
@@ -208,7 +277,10 @@ void init_comms() {
 
 
 void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
-    init_adc(adc_clock_speed_hz);
+    for (gpio_num_t pin : ADC_CHANNEL_SELECT) {
+        init_adc(adc_clock_speed_hz, pin);
+    }
+
     init_pwm_driver();
     init_imu();
     init_comms();

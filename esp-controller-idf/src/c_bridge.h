@@ -12,6 +12,10 @@ typedef struct {
 void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate);
 void bc_core_1_loop();
 
+void bc_bench_test_adc();
+void bc_bench_test_adc_isolated();
+void bc_bench_test_0();
+
 void bc_bench_test_0();
 void bc_bench_test_1();
 void bc_bench_test_2();

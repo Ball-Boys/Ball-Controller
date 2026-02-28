@@ -15,6 +15,17 @@ void bc_core_1_loop() {
     }
 }
 
+void bc_bench_test_adc() {
+    test_adc();
+    vTaskDelete(NULL);
+}
+
+
+void bc_bench_test_adc_isolated() {
+    test_adc_isolated();
+    vTaskDelete(NULL);
+}
+
 void bc_bench_test_0() {
     test_0();
     vTaskDelete(NULL);
@@ -27,10 +38,12 @@ void bc_bench_test_1() {
 
 void bc_bench_test_2() {
     test_2();
+    vTaskDelete(NULL);
 }
 
 void bc_bench_test_3() {
     test_3();
+    vTaskDelete(NULL);
 }
 
 void bc_bench_test_4() {

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <unordered_map>
+#include <driver/gpio.h>
 
 
 struct Orientation {
@@ -52,10 +53,10 @@ struct Vector3 {
 };
 
 struct ADCAddress {
-    const int adc_gpio_address;
+    const gpio_num_t adc_gpio_address;
     const int channel;
 
-    constexpr ADCAddress(int adc_gpio_address, int channel) : adc_gpio_address(adc_gpio_address), channel(channel) {}
+    constexpr ADCAddress(gpio_num_t adc_gpio_address, int channel) : adc_gpio_address(adc_gpio_address), channel(channel) {}
 };
 
 struct PWMAddress {
@@ -294,6 +295,14 @@ private:
     std::vector<AngularVelocity> angularVelocityHistory;
     Vector3 idealDirection;
     std::vector<int> currentControlledMagnetIds;
+
+    // Timing instrumentation
+    std::chrono::steady_clock::time_point loop_start;
+    std::chrono::steady_clock::time_point loop_end;
+    std::chrono::steady_clock::time_point adc_read_start;
+    std::chrono::steady_clock::time_point adc_read_end;
+    std::chrono::steady_clock::time_point pwm_set_start;
+    std::chrono::steady_clock::time_point pwm_set_end;
 
     bool killed = false;
 };

@@ -1,5 +1,7 @@
 #include "bench_test.h"
 
+#include <core/peripherals.h>
+
 // in test 1 we will sweep through turning each magnet on one by one for 1 second each.
 #include "core/global_state.h"
 #include "utils/utils.h"
@@ -38,17 +40,51 @@ void run_control_loop_for_seconds(GlobalState& instance, float duration_s) {
 }
 } // namespace
 
+void test_adc_isolated() {
+    printf("Starting isolated ADC test\n");
+    while (true) {
+        std::vector<uint16_t> values;
+        for (gpio_num_t num : {GPIO_NUM_27, GPIO_NUM_32, GPIO_NUM_33}) {
+            for (int channel = 0; channel < 8; ++channel) {
+                uint16_t value = adc1283_read(num, channel);
+
+                values.push_back(value);
+            }
+        }
+
+        printf("Completed ADC read cycle. Values: ");
+        for (const auto& value : values) {
+            printf("%d ", value);
+        }
+        printf("\n");
+        vTaskDelay(pdMS_TO_TICKS(100)); // Delay 1 second
+        
+    }
+}
+
 
 void test_adc() {
     serial_print("Starting ADC test\n");
 
     while (true) {
-        std::vector<int> value = retreveCurrentValueFromADC({0}); // Test with ADC channel 0
-        serial_printf("Read ADC value: %d\n", value[0]);
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay 1 second
+        
+        std::vector<float> value = retreveCurrentValueFromADC(
+            {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+            
+        );
+        printf("Retrieved current values from ADC: ");
+        int i = 1;
+        for (const float val : value) {
+            printf("%d: %.3f A ", i, val);
+            i++;
+        }
+        printf("\n");
+        vTaskDelay(pdMS_TO_TICKS(100)); // Delay 1 second
     }
 
 }
+
+
 
 void test_0() {
     serial_print("Starting test 0: Basic control loop timing\n");
@@ -58,14 +94,13 @@ void test_0() {
     int num_deltas = 0;
     float delta = 0.000003f;  // Time step in seconds
     float w = 2.0f * 3.14159f * 1000;  // 2*pi for sine wave, freq controlled by delay
-
     while (true) {
         // set pwm to current value of sin wave (0-255 range)
         int pwm_value = static_cast<int>((std::sin(num_deltas * delta * w) + 1.0f) * 2048.5f);
-        // pwm_value = 4000;
-        setPWMOutputs({11}, {pwm_value});
-        serial_printf("Setting value: %d (sin arg: %f)\n", pwm_value, num_deltas * delta * w);
-        vTaskDelay(pdMS_TO_TICKS(1));  // Delay ~0.3ms via FreeRTOS
+        // int pwm_value = 2555;
+        setPWMOutputs({1}, {pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value});
+        printf("Setting value: %d (sin arg: %f)\n", pwm_value, num_deltas * delta * w);
+        vTaskDelay(pdMS_TO_TICKS(4));  // Delay ~0.3ms via FreeRTOS
         ++num_deltas; 
     }
 
@@ -82,9 +117,9 @@ void test_1() {
 
     int loops = 0;
     // loop though index 0 through 19 magents
-    for (int mag_id = 1; mag_id <= 20; ++mag_id) {
+    for (int mag_id = 1; mag_id <= 1; ++mag_id) {
         serial_printf("Activating magnet %d\n", mag_id);
-        instance.setControl(ControlOutputs(mag_id, 255)); // Set magnet to max power
+        instance.setControl(ControlOutputs(mag_id, 3)); // Set magnet to mid power
         serial_printf("Running control loop for 1 second with magnet %d on\n", mag_id);
         run_control_loop_for_seconds(instance, 1.0f);
         instance.setControl(ControlOutputs::zero(mag_id)); // Set magnet back to 0
