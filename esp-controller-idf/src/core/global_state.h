@@ -83,8 +83,8 @@ class MagnetInfo {
         const Vector3 position;
 
         
-        const float kp = 50.0f;
-        const float ki = 15000.0f;
+        const float kp = 300.0f;
+        const float ki = 1500.0f;
         const float dt; // 300 microseconds
 
         const ADCAddress adcAddress;
@@ -108,7 +108,7 @@ class MagnetInfo {
             //                              activeCurrentHistory.begin(), 
             //                              activeCurrentHistory.end());
             activeCurrentHistory.clear();
-
+            // RESTING THE integral terms someitmes causes the PWM driver to cvhange i frequency (has not been observed since)
             controlIntegral = 0;
         }
 

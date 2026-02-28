@@ -139,9 +139,11 @@ void test_magnet_step() {
     while (true) {
         for (int mag_id = 1; mag_id <= 1; ++mag_id) {
             for (int i = 0; i < 10; ++i) {
-                
                 instance.setControl(ControlOutputs(mag_id, i)); // Set magnet to random power
-
+                run_control_loop_for_seconds(instance, 0.01f);
+            }
+            for (int i = 10; i >= 0; --i) {
+                instance.setControl(ControlOutputs(mag_id, i)); // Set magnet to random power
                 run_control_loop_for_seconds(instance, 0.01f);
             }
         }
