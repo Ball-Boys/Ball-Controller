@@ -63,3 +63,5 @@ Ball-Controller.code-workspace
 # build outputs
 build/
 **/build/
+
+managed_components/

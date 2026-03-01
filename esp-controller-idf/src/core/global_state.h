@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <driver/gpio.h>
+#include <set>
 
 
 struct Orientation {
@@ -83,7 +84,7 @@ class MagnetInfo {
         const Vector3 position;
 
         
-        const float kp = 300.0f;
+        const float kp = 35.0f;
         const float ki = 15000.0f;
         const float dt; // 300 microseconds
 
@@ -295,6 +296,7 @@ private:
     std::vector<AngularVelocity> angularVelocityHistory;
     Vector3 idealDirection;
     std::vector<int> currentControlledMagnetIds;
+    std::set<int> isMagnetRunning = {};
 
     // Timing instrumentation
     

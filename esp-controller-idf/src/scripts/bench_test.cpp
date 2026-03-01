@@ -118,12 +118,13 @@ void test_1() {
     int loops = 0;
     // loop though index 0 through 19 magents
     while (true) {
-        for (int mag_id = 1; mag_id <= 1; ++mag_id) {
-            serial_printf("Activating magnet %d\n", mag_id);
+        for (int mag_id = 1; mag_id <= 2; ++mag_id) {
+            
             instance.setControl(ControlOutputs(mag_id, 10)); // Set magnet to mid power
-            serial_printf("Running control loop for 1 second with magnet %d on\n", mag_id);
-            run_control_loop_for_seconds(instance, 5.0f);
-            instance.setControl(ControlOutputs::zero(mag_id)); // Set magnet back to 0
+            run_control_loop_for_seconds(instance, 2.0f);
+            instance.setControl(ControlOutputs(mag_id, 0)); // Set magnet to 0 power
+            run_control_loop_for_seconds(instance, 0.5f);
+
         }
     }
     serial_print("Test 1 complete: Magnet sweep\n");
@@ -163,12 +164,12 @@ void test_2() {
 
     int loops = 0;
     // loop though index 0 through 19 magents
-    for (int mag_id = 1; mag_id <= 20; mag_id += 2) {
+    for (int mag_id = 1; mag_id <= 4; mag_id += 2) {
         serial_printf("Activating magnets %d and %d\n", mag_id, mag_id + 1);
-        instance.setControl(ControlOutputs(mag_id, 255)); // Set magnet to max power
-        instance.setControl(ControlOutputs(mag_id + 1, 255)); // Set next magnet to max power
+        instance.setControl(ControlOutputs(mag_id, 10)); // Set magnet to max power
+        instance.setControl(ControlOutputs(mag_id + 1, 10)); // Set next magnet to max power
 
-        run_control_loop_for_seconds(instance, 1.0f);
+        run_control_loop_for_seconds(instance, 2.0f);
 
     }
 }
