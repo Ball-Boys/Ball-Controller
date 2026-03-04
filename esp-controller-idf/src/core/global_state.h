@@ -4,6 +4,8 @@
 #include <chrono>
 #include <stdexcept>
 #include <unordered_map>
+#include <driver/gpio.h>
+#include <set>
 
 
 struct Orientation {
@@ -52,10 +54,10 @@ struct Vector3 {
 };
 
 struct ADCAddress {
-    const int adc_gpio_address;
+    const gpio_num_t adc_gpio_address;
     const int channel;
 
-    constexpr ADCAddress(int adc_gpio_address, int channel) : adc_gpio_address(adc_gpio_address), channel(channel) {}
+    constexpr ADCAddress(gpio_num_t adc_gpio_address, int channel) : adc_gpio_address(adc_gpio_address), channel(channel) {}
 };
 
 struct PWMAddress {
@@ -76,11 +78,13 @@ class MagnetInfo {
         int controlIntegral = 0;
         
     public:
+        static constexpr size_t kMaxCurrentHistorySize = 100;  // Rolling buffer max size
+        
         const int id;
         const Vector3 position;
 
         
-        const float kp = 50.0f;
+        const float kp = 35.0f;
         const float ki = 15000.0f;
         const float dt; // 300 microseconds
 
@@ -101,12 +105,12 @@ class MagnetInfo {
         }
 
         void flushCurrentHistory() {
-            flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
-                                         activeCurrentHistory.begin(), 
-                                         activeCurrentHistory.end());
+            // flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
+            //                              activeCurrentHistory.begin(), 
+            //                              activeCurrentHistory.end());
             activeCurrentHistory.clear();
-
-            controlIntegral = 0;
+            // RESTING THE integral terms someitmes causes the PWM driver to cvhange i frequency (has not been observed since)
+            // controlIntegral = 0;
         }
 
         const std::vector<CurrentInfo>& getFlushedCurrentHistory() const {
@@ -147,6 +151,10 @@ class MagnetInfo {
 
         void setCurrentValue(const CurrentInfo& value) {
             activeCurrentHistory.push_back(value);
+            // Remove oldest entry if size exceeds max
+            if (activeCurrentHistory.size() > kMaxCurrentHistorySize) {
+                activeCurrentHistory.erase(activeCurrentHistory.begin());
+            }
         }
 
         void setControlValue(const ControlOutputs& value) {
@@ -162,14 +170,19 @@ class MagnetInfo {
             float error = controlHistory.back().current_value - activeCurrentHistory.back().current;
             float new_i = ki * error * dt;
 
-            // TODO: ask Josh the purpose of this clipping
+            // Anti-windup: prevent integral from growing too large
             controlIntegral += new_i;
+            if (controlIntegral > 4095.0f) controlIntegral = 4095.0f;
+            if (controlIntegral < -4095.0f) controlIntegral = -4095.0f;
+            
             float p_term = kp * error;
             float i_term = controlIntegral;
             float output = p_term + i_term;
 
+            // Clamp output to valid PWM range
+            if (output > 4095.0f) output = 4095.0f;
+            if (output < 0.0f) output = 0.0f;
             
-            // TODO: add bounds here 
             return (int)(output);
         }
 
@@ -220,7 +233,7 @@ class GlobalState {
 public:
     static GlobalState& instance();
 
-    float fastLoopTime = 0.0003f; // 300 microseconds
+    float fastLoopTime = 0.000650f; // 650 microseconds
     float slowLoopTime = 0.01f; // 10 milliseconds
 
     // functions get values about the orientation
@@ -283,6 +296,10 @@ private:
     std::vector<AngularVelocity> angularVelocityHistory;
     Vector3 idealDirection;
     std::vector<int> currentControlledMagnetIds;
+    std::set<int> isMagnetRunning = {};
+
+    // Timing instrumentation
+    
 
     bool killed = false;
 };

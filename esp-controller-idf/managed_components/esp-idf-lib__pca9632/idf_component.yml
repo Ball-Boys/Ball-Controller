@@ -1,0 +1,32 @@
+dependencies:
+  esp-idf-lib/esp_idf_lib_helpers:
+    version: '*'
+  esp-idf-lib/i2cdev:
+    version: '*'
+description: Driver for PCA9632 4-channel PWM chip
+discussion: https://github.com/esp-idf-lib/core/discussions
+documentation: https://esp-idf-lib.github.io/pca9632/
+files:
+  exclude:
+  - docs/**/*
+issues: https://github.com/esp-idf-lib/pca9632/issues
+license: BSD-3
+maintainers:
+- Jakub Turek (@QB4-dev)
+repository: git://github.com/esp-idf-lib/pca9632.git
+repository_info:
+  commit_sha: f55211bc2d840ef204f3109f3ce3c23ccdf3d0a0
+  path: .
+targets:
+- esp32
+- esp32c2
+- esp32c3
+- esp32c5
+- esp32c6
+- esp32c61
+- esp32h2
+- esp32p4
+- esp32s2
+- esp32s3
+url: https://github.com/esp-idf-lib/core
+version: 1.0.7

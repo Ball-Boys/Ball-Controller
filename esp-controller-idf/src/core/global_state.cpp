@@ -2,6 +2,11 @@
 #include "magnet_config.h"
 
 #include "utils/utils.h"
+#include <esp_timer.h>
+#include <freertos/mpu_wrappers.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 GlobalState& GlobalState::instance() {
     static GlobalState singleton(MAGNET_CONFIG);
@@ -106,7 +111,14 @@ std::vector<ControlOutputs> GlobalState::getLatestControl() const {
             const auto& latestControl = controlHistory.back();
             if (latestControl.current_value != 0.0f) {
                 latest.push_back(latestControl);
+            } else {
+                latest.push_back(ControlOutputs::zero(pair.first));
             }
+        }
+        else 
+        {
+            // If no control history, we can consider it as zero control
+            latest.push_back(ControlOutputs::zero(pair.first));
         }
     }
     return latest;
@@ -213,46 +225,74 @@ CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
 
 
 std::vector<CurrentInfo> GlobalState::currentControlLoop() {
-
-    // collect the latest control outputs for all magnets
+    int64_t loop_start = esp_timer_get_time();
+    
     std::vector<ControlOutputs> latestControls = getLatestControl();
     std::vector<int> mag_ids;
-    for (const auto& control : latestControls) {
-        mag_ids.push_back(control.magnetId);
-    }
-
     std::vector<int> magnets_to_zero = mag_ids;
 
-    // logically it is really important to set an prevously controlled magnets to 0. 
-    for (const auto& mag_id : currentControlledMagnetIds) {
-        if (std::find(mag_ids.begin(), mag_ids.end(), mag_id) == mag_ids.end()) {
-            // we will need to zero this magnet's control output
-            setControl(ControlOutputs::zero(mag_id));
-            // we also will need to manually set the magnets here to 0 
-            magnets_to_zero.push_back(mag_id);
+    
+
+    for (const auto& control : latestControls) {
+        if (control.current_value != 0.0f) {
+            mag_ids.push_back(control.magnetId);
+            isMagnetRunning.insert(control.magnetId);
+            
+        } else {
+            if (isMagnetRunning.count(control.magnetId) > 0) {
+                magnets_to_zero.push_back(control.magnetId);
+                isMagnetRunning.erase(control.magnetId);
+            }
+            
         }
     }
-
+    
     setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
 
     currentControlledMagnetIds = mag_ids;
-        
-    std::vector<int> currents = retreveCurrentValueFromADC(mag_ids);
-    std::vector<CurrentInfo> currentInfos;
-    std::vector<int> newPWMSignals;
 
+    std::vector<CurrentInfo> currentInfos;
+
+    // Method 2 to make our controller happier (do things 1 by 1)
     for (size_t i = 0; i < mag_ids.size(); ++i) {
+        
         int magnetId = mag_ids[i];
-        float currentValue = currents[i];
+        std::vector<float> currentValues = retreveCurrentValueFromADC({magnetId});
+        float currentValue = currentValues[0]; // Assuming single value per magnet
         CurrentInfo currentInfo(magnetId, currentValue);
         currentInfos.push_back(currentInfo);
         magnetList.getMagnetById(magnetId).setCurrentValue(currentInfo);
 
         int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
-        newPWMSignals.push_back(newPWMSignal);
+        setPWMOutputs({magnetId}, {newPWMSignal});
     }
+        
+    // Read ADC values
+    // std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
 
-    setPWMOutputs(mag_ids, newPWMSignals);
+    // // printf("[ADC] Current values read from ADC | Time: %lld µs\n", (adc_end - adc_start));
+    
+    
+    // std::vector<int> newPWMSignals;
+
+    // // Process each magnet and calculate control signals
+    // for (size_t i = 0; i < mag_ids.size(); ++i) {
+    //     int magnetId = mag_ids[i];
+    //     float currentValue = currents[i];
+    //     CurrentInfo currentInfo(magnetId, currentValue);
+    //     currentInfos.push_back(currentInfo);
+    //     magnetList.getMagnetById(magnetId).setCurrentValue(currentInfo);
+
+    //     int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
+    //     newPWMSignals.push_back(newPWMSignal);
+    // }
+
+    // setPWMOutputs(mag_ids, newPWMSignals);
+
+
+    int64_t loop_end = esp_timer_get_time();
+    int64_t total_time = (loop_end - loop_start);
+
 
     return currentInfos;
 }
