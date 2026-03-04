@@ -250,28 +250,44 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
     setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
 
     currentControlledMagnetIds = mag_ids;
-        
-    // Read ADC values
-    std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
 
-    // printf("[ADC] Current values read from ADC | Time: %lld µs\n", (adc_end - adc_start));
-    
     std::vector<CurrentInfo> currentInfos;
-    std::vector<int> newPWMSignals;
 
-    // Process each magnet and calculate control signals
+    // Method 2 to make our controller happier (do things 1 by 1)
     for (size_t i = 0; i < mag_ids.size(); ++i) {
+        
         int magnetId = mag_ids[i];
-        float currentValue = currents[i];
+        std::vector<float> currentValues = retreveCurrentValueFromADC({magnetId});
+        float currentValue = currentValues[0]; // Assuming single value per magnet
         CurrentInfo currentInfo(magnetId, currentValue);
         currentInfos.push_back(currentInfo);
         magnetList.getMagnetById(magnetId).setCurrentValue(currentInfo);
 
         int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
-        newPWMSignals.push_back(newPWMSignal);
+        setPWMOutputs({magnetId}, {newPWMSignal});
     }
+        
+    // Read ADC values
+    // std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
 
-    setPWMOutputs(mag_ids, newPWMSignals);
+    // // printf("[ADC] Current values read from ADC | Time: %lld µs\n", (adc_end - adc_start));
+    
+    
+    // std::vector<int> newPWMSignals;
+
+    // // Process each magnet and calculate control signals
+    // for (size_t i = 0; i < mag_ids.size(); ++i) {
+    //     int magnetId = mag_ids[i];
+    //     float currentValue = currents[i];
+    //     CurrentInfo currentInfo(magnetId, currentValue);
+    //     currentInfos.push_back(currentInfo);
+    //     magnetList.getMagnetById(magnetId).setCurrentValue(currentInfo);
+
+    //     int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
+    //     newPWMSignals.push_back(newPWMSignal);
+    // }
+
+    // setPWMOutputs(mag_ids, newPWMSignals);
 
 
     int64_t loop_end = esp_timer_get_time();

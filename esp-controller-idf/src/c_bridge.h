@@ -16,6 +16,8 @@ void bc_bench_test_adc();
 void bc_bench_test_adc_isolated();
 void bc_bench_test_0();
 void bc_bench_test_magnet_step();
+void bc_bench_test_stress_20ms();
+void bc_bench_test_quad_magnet_stress();
 
 void bc_bench_test_0();
 void bc_bench_test_1();

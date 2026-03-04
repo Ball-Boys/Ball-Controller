@@ -41,6 +41,15 @@ void bc_bench_test_magnet_step() {
     vTaskDelete(NULL);
 }
 
+void bc_bench_test_stress_20ms() {
+    test_stress_20ms();
+    vTaskDelete(NULL);
+}
+void bc_bench_test_quad_magnet_stress() {
+    test_quad_magnet_stress();
+    vTaskDelete(NULL);
+}
+
 void bc_bench_test_2() {
     test_2();
     vTaskDelete(NULL);
