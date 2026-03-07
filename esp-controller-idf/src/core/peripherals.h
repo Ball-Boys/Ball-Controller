@@ -4,15 +4,22 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
+#define EXAMPLE_ESP_WIFI_SSID      "ESP32_Data_Link"
+#define EXAMPLE_ESP_WIFI_PASS      "password123"
+#define PORT                        5005
+#define RECV_IP_ADDR               "192.168.4.2"
+
+static const char *TAG = "WIFI_DATA_LINK";
+
 const gpio_num_t ADC_CHANNEL_SELECT[] = {GPIO_NUM_27, GPIO_NUM_32, GPIO_NUM_33}; 
 const int ADC_MISO_PIN = GPIO_NUM_19; // MISO
 
 const int ADC_MOSI_PIN = GPIO_NUM_23; // MOSI
 const int ADC_SLK_PIN = GPIO_NUM_18; //SCL
 
-static constexpr gpio_num_t I2C_SDA_PIN = GPIO_NUM_21;
-static constexpr gpio_num_t I2C_SCL_PIN = GPIO_NUM_22;
-static constexpr int I2C_CLOCK_HZ = 400000;
+static gpio_num_t I2C_SDA_PIN = GPIO_NUM_21;
+static gpio_num_t I2C_SCL_PIN = GPIO_NUM_22;
+static int I2C_CLOCK_HZ = 400000;
 
 
 
