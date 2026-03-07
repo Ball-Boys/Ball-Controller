@@ -175,23 +175,27 @@ const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues() 
 }
 
 const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId) const {
+    static std::vector<CurrentInfo> cached;
     const auto& magnet = magnetList.getMagnetById(magnetId);
-    return magnet.getCurrentHistory();
+    cached = magnet.getCurrentHistory();
+    return cached;
 }
 
 const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId, int last_n) const {
     const auto& magnet = magnetList.getMagnetById(magnetId);
     static std::vector<CurrentInfo> subset;
+    
+    std::vector<CurrentInfo> history = magnet.getCurrentHistory();
     subset.clear();
     
     if (last_n <= 0) {
         return subset;
     }
     
-    int start_idx = std::max(0, static_cast<int>(magnet.getCurrentHistory().size()) - last_n);
+    int start_idx = std::max(0, static_cast<int>(history.size()) - last_n);
     subset.insert(subset.end(), 
-                  magnet.getCurrentHistory().begin() + start_idx, 
-                  magnet.getCurrentHistory().end());
+                  history.begin() + start_idx, 
+                  history.end());
     return subset;
 }
 
@@ -217,10 +221,11 @@ const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues(in
 
 CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
     const auto& magnet = magnetList.getMagnetById(magnetId);
-    if (magnet.getCurrentHistory().empty()) {
+    std::vector<CurrentInfo> history = magnet.getCurrentHistory();
+    if (history.empty()) {
         throw std::runtime_error("No current values yet for this magnet");
     }
-    return magnet.getCurrentHistory().back();
+    return history.back();
 }
 
 
