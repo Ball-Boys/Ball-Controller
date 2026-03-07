@@ -117,17 +117,22 @@ void test_1() {
 
     int loops = 0;
     // loop though index 0 through 19 magents
-    while (true) {
-        for (int mag_id = 1; mag_id <= 1; ++mag_id) {
-            
-            instance.setControl(ControlOutputs(mag_id, 5)); // Set magnet to mid power
-            run_control_loop_for_seconds(instance, 2.0f);
-            instance.setControl(ControlOutputs(mag_id, 0)); // Set magnet to 0 power
-            run_control_loop_for_seconds(instance, 0.5f);
+    printf("Activating magnet 1 at mid power for 2 seconds\n");
 
-        }
-    }
-    serial_print("Test 1 complete: Magnet sweep\n");
+    instance.setControl(ControlOutputs(1, 2)); // Set magnet to mid power
+    run_control_loop_for_seconds(instance, 2.0f);
+    printf("Completed magnet 1 activation\n");
+    instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
+    run_control_loop_for_seconds(instance, 2.0f);
+    printf("Completed magnet 1 deactivation\n");
+
+    instance.setControl(ControlOutputs(1, 4)); // Set magnet to mid power
+    run_control_loop_for_seconds(instance, 2.0f);
+    printf("Completed magnet 1 activation\n");
+    instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
+    run_control_loop_for_seconds(instance, 2.0f);
+    printf("Completed magnet 1 deactivation\n");
+
 }
 
 void test_stress_20ms() {
