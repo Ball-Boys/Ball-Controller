@@ -74,9 +74,8 @@ void bc_serial_print(const char* msg) {
     serial_print(msg);
 }
 
-void bc_udp_sender_task(void* param) {
-    udp_sender_task(param);
-    vTaskDelete(NULL);
+void bc_udp_sender_task() {
+    udp_sender_task();
 }
 
 

@@ -9,7 +9,7 @@
 
 
 
-void udp_sender_task(void *pvParameters) {
+void udp_sender_task() {
     struct sockaddr_in dest_addr;
     dest_addr.sin_addr.s_addr = inet_addr(RECV_IP_ADDR);
     dest_addr.sin_family = AF_INET;
@@ -22,7 +22,7 @@ void udp_sender_task(void *pvParameters) {
     while (1) {
         extract_data_from_globals(&out_data);
         sendto(sock, &out_data, sizeof(out_data), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Send at 10Hz
+        vTaskDelay(pdMS_TO_TICKS(100));  // Send every 100ms (10Hz)
     }
 }
 
