@@ -79,6 +79,11 @@ void bc_udp_sender_task(void* param) {
     vTaskDelete(NULL);
 }
 
+void bc_bench_test_imu() {
+    test_imu();
+    vTaskDelete(NULL);
+}
+
 
 
 

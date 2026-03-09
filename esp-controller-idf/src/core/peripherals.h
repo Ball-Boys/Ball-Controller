@@ -11,6 +11,7 @@
 
 static const char *TAG = "WIFI_DATA_LINK";
 
+
 const gpio_num_t ADC_CHANNEL_SELECT[] = {GPIO_NUM_27, GPIO_NUM_32, GPIO_NUM_33}; 
 const int ADC_MISO_PIN = GPIO_NUM_19; // MISO
 
@@ -45,5 +46,13 @@ spi_device_handle_t get_adc_device(gpio_num_t adc_gpio_address);
 uint16_t adc1283_read(gpio_num_t chip_select, int channel);
 
 void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255);
+
+// IMU functions
+void update_imu_data();
+bool read_imu_quaternion(float& w, float& x, float& y, float& z);
+bool read_imu_angular_velocity(float& x, float& y, float& z);
+bool read_imu_accelerometer(float& x, float& y, float& z);
+bool read_imu_magnetometer(float& x, float& y, float& z);
+bool imu_data_available();
 
 

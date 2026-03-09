@@ -25,7 +25,7 @@ void app_main() {
 
 
     // 3. Start the Data Task
-    xTaskCreate(bc_udp_sender_task, "udp_sender", 32768, NULL, 5, NULL);
+    xTaskCreate(bc_bench_test_imu, "udp_sender", 32768, NULL, 5, NULL);
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000)); // Main loop sleeps, task runs independently

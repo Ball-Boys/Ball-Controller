@@ -11,7 +11,9 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "lwip/sockets.h"
+#include <cstring>
 
 
 
@@ -24,6 +26,42 @@ static std::unordered_map<int, spi_device_handle_t> s_adc_devices;
 static bool s_i2c_initialized = false;
 static i2c_master_bus_handle_t s_i2c_bus = nullptr;
 static std::unordered_map<int, i2c_master_dev_handle_t> s_pwm_devices;
+
+// BNO08x IMU static variables
+static bool s_imu_initialized = false;
+static i2c_master_dev_handle_t s_imu_device = nullptr;
+static constexpr uint8_t BNO08X_I2C_ADDR = 0x4A;  // Default I2C address
+static constexpr uint8_t BNO08X_I2C_ADDR_ALT = 0x4B;  // Alternate address
+
+// BNO08x SH-2 Channel and registers
+static constexpr uint8_t CHANNEL_COMMAND = 0;
+static constexpr uint8_t CHANNEL_EXECUTABLE = 1;
+static constexpr uint8_t CHANNEL_CONTROL = 2;
+static constexpr uint8_t CHANNEL_REPORTS = 3;
+static constexpr uint8_t CHANNEL_WAKE_REPORTS = 4;
+static constexpr uint8_t CHANNEL_GYRO = 5;
+static uint8_t s_shtp_tx_seq[6] = {0, 0, 0, 0, 0, 0};
+
+// Sensor report IDs
+static constexpr uint8_t SENSOR_REPORTID_ROTATION_VECTOR = 0x05;
+static constexpr uint8_t SENSOR_REPORTID_GYROSCOPE = 0x02;
+static constexpr uint8_t SENSOR_REPORTID_ACCELEROMETER = 0x01;
+static constexpr uint8_t SENSOR_REPORTID_MAGNETIC_FIELD = 0x03;
+
+// Cached sensor data
+struct IMUSensorData {
+    float quat_w = 1.0f, quat_x = 0.0f, quat_y = 0.0f, quat_z = 0.0f;
+    float gyro_x = 0.0f, gyro_y = 0.0f, gyro_z = 0.0f;
+    float accel_x = 0.0f, accel_y = 0.0f, accel_z = 0.0f;
+    float mag_x = 0.0f, mag_y = 0.0f, mag_z = 0.0f;
+    bool quat_valid = false;
+    bool gyro_valid = false;
+    bool accel_valid = false;
+    bool mag_valid = false;
+    uint32_t last_update_ms = 0;
+};
+
+static IMUSensorData s_imu_data;
 }
 
 void init_adc(int clock_speed_hz, gpio_num_t chip_select_pin) {
@@ -210,13 +248,10 @@ void init_pwm_driver() {
             // Store the device handle using the I2C address as the key
             s_pwm_devices.emplace(addr, handle);
             
-            serial_print("Initialized PCA9685 at I2C address 0x");
-            serial_printf("%02X", addr);
-            serial_print("\n");
+            printf("PCA9685 Initialized at I2C address 0x%02X", addr);
         } else {
-            serial_print("Failed to initialize PCA9685 at 0x");
-            serial_printf("%02X", addr);
-            serial_print("\n");
+            printf("PCA9685 Failed to initialize at 0x%02X", addr);
+            
         }
     }
 }
@@ -276,12 +311,331 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
 }
 
 
-void init_imu() {
+// Helper function to send SHTP packets to BNO08x
+static esp_err_t bno08x_send_packet(uint8_t channel, const uint8_t* data, size_t len) {
+    if (s_imu_device == nullptr) return ESP_FAIL;
+    if (channel > CHANNEL_GYRO) return ESP_ERR_INVALID_ARG;
+    if (len + 4 > 256) return ESP_ERR_INVALID_SIZE;
 
+    // SHTP header: 4 bytes length + channel number
+    uint16_t packet_len = len + 4;
+    uint8_t buffer[256];
+    
+    buffer[0] = packet_len & 0xFF;
+    buffer[1] = (packet_len >> 8) & 0xFF;
+    buffer[2] = channel;
+    buffer[3] = s_shtp_tx_seq[channel]++;
+    
+    if (len > 0 && data != nullptr) {
+        memcpy(&buffer[4], data, len);
+    }
+    
+    printf("[SEND] ch=%u seq=%u len=%u\n", channel, buffer[3], (unsigned)packet_len);
+    esp_err_t err = i2c_master_transmit(s_imu_device, buffer, packet_len, 100);
+    printf("[SEND] result=%d\n", err);
+    return err;
+}
+
+// Helper function to read SHTP packets from BNO08x
+static esp_err_t bno08x_receive_packet(uint8_t* buffer, size_t max_len, size_t* received_len) {
+    if (s_imu_device == nullptr || buffer == nullptr || received_len == nullptr || max_len < 4) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *received_len = 0;
+
+    // Read 4-byte SHTP header
+    uint8_t header[4] = {0};
+    esp_err_t err = i2c_master_receive(s_imu_device, header, sizeof(header), 20);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // SHTP length includes header; bit15 is continuation flag
+    uint16_t packet_len = static_cast<uint16_t>(header[0] | (header[1] << 8)) & 0x7FFF;
+    uint8_t channel = header[2];
+
+    if (packet_len == 0) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (packet_len < 4 || packet_len > max_len) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    if (channel > CHANNEL_GYRO) {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    memcpy(buffer, header, sizeof(header));
+
+    const size_t payload_len = packet_len - 4;
+    if (payload_len > 0) {
+        err = i2c_master_receive(s_imu_device, &buffer[4], payload_len, 20);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    *received_len = packet_len;
+    return ESP_OK;
+}
+
+// Enable a specific sensor report
+static esp_err_t bno08x_enable_report(uint8_t report_id, uint32_t interval_us) {
+    uint8_t cmd[17] = {0};
+    
+    cmd[0] = 0xFD;  // Set feature command
+    cmd[1] = report_id;
+    cmd[2] = 0;  // Feature flags
+    cmd[3] = 0;
+    cmd[4] = 0;
+    
+    // Report interval in microseconds (little endian)
+    cmd[5] = interval_us & 0xFF;
+    cmd[6] = (interval_us >> 8) & 0xFF;
+    cmd[7] = (interval_us >> 16) & 0xFF;
+    cmd[8] = (interval_us >> 24) & 0xFF;
+    
+    // Batch interval (same as report interval)
+    cmd[9] = cmd[5];
+    cmd[10] = cmd[6];
+    cmd[11] = cmd[7];
+    cmd[12] = cmd[8];
+    
+    esp_err_t err = bno08x_send_packet(CHANNEL_CONTROL, cmd, 17);
+    if (err != ESP_OK) {
+        ESP_LOGE("IMU", "Failed enabling report 0x%02X, err=%s", report_id, esp_err_to_name(err));
+    } else {
+        ESP_LOGI("IMU", "Enabled report 0x%02X @ %u us", report_id, static_cast<unsigned>(interval_us));
+    }
+    return err;
+}
+
+// Parse sensor reports from BNO08x
+static void bno08x_parse_sensor_report(const uint8_t* data, size_t len) {
+    
+    if (data == nullptr || len < 4) return;
+
+    const uint8_t rid0 = data[0];
+    const uint8_t rid5 = (len > 5) ? data[5] : 0xFF;
+    uint8_t report_id = rid0;
+
+    const bool rid0_known =
+        rid0 == SENSOR_REPORTID_ROTATION_VECTOR ||
+        rid0 == SENSOR_REPORTID_GYROSCOPE ||
+        rid0 == SENSOR_REPORTID_ACCELEROMETER ||
+        rid0 == SENSOR_REPORTID_MAGNETIC_FIELD;
+
+    if (!rid0_known && rid5 != 0xFF) {
+        report_id = rid5;
+    }
+    
+    // Helper to extract int16_t from little-endian bytes
+    auto get_int16 = [](const uint8_t* buf, size_t offset) -> int16_t {
+        return (int16_t)(buf[offset] | (buf[offset + 1] << 8));
+    };
+    
+    // Helper to convert Q-point fixed to float
+    auto quat_to_float = [](int16_t val) -> float {
+        return val / 16384.0f;  // Q14 fixed point
+    };
+    
+    auto gyro_to_float = [](int16_t val) -> float {
+        return val / 32768.0f * 2000.0f * (3.14159265f / 180.0f);  // Convert to rad/s
+    };
+    
+    auto accel_to_float = [](int16_t val) -> float {
+        return val / 32768.0f * 16.0f * 9.81f;  // Convert to m/s^2
+    };
+    
+    auto mag_to_float = [](int16_t val) -> float {
+        return val / 32768.0f * 1000.0f;  // Convert to µT
+    };
+
+    
+    
+    switch (report_id) {
+        case SENSOR_REPORTID_ROTATION_VECTOR:
+            if (len >= 14) {
+                s_imu_data.quat_x = quat_to_float(get_int16(data, 4));
+                s_imu_data.quat_y = quat_to_float(get_int16(data, 6));
+                s_imu_data.quat_z = quat_to_float(get_int16(data, 8));
+                s_imu_data.quat_w = quat_to_float(get_int16(data, 10));
+                s_imu_data.quat_valid = true;
+                s_imu_data.last_update_ms = esp_timer_get_time() / 1000;
+            }
+            break;
+            
+        case SENSOR_REPORTID_GYROSCOPE:
+            if (len >= 10) {
+                s_imu_data.gyro_x = gyro_to_float(get_int16(data, 4));
+                s_imu_data.gyro_y = gyro_to_float(get_int16(data, 6));
+                s_imu_data.gyro_z = gyro_to_float(get_int16(data, 8));
+                s_imu_data.gyro_valid = true;
+            }
+            break;
+            
+        case SENSOR_REPORTID_ACCELEROMETER:
+            if (len >= 10) {
+                s_imu_data.accel_x = accel_to_float(get_int16(data, 4));
+                s_imu_data.accel_y = accel_to_float(get_int16(data, 6));
+                s_imu_data.accel_z = accel_to_float(get_int16(data, 8));
+                s_imu_data.accel_valid = true;
+            }
+            break;
+            
+        case SENSOR_REPORTID_MAGNETIC_FIELD:
+            if (len >= 10) {
+                s_imu_data.mag_x = mag_to_float(get_int16(data, 4));
+                s_imu_data.mag_y = mag_to_float(get_int16(data, 6));
+                s_imu_data.mag_z = mag_to_float(get_int16(data, 8));
+                s_imu_data.mag_valid = true;
+            }
+            break;
+        default:
+            printf("[PARSE] Unknown report id 0x%02X (rid0=0x%02X rid5=0x%02X len=%u)\n",
+                   report_id, rid0, rid5, static_cast<unsigned>(len));
+            break;
+    }
+}
+
+// Poll for new data from BNO08x
+static void bno08x_poll_data() {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        printf("[Poll] IMU not initialized\n");
+        return;
+    }
+
+    uint8_t buffer[256];
+    size_t len = 0;
+    
+    esp_err_t err = bno08x_receive_packet(buffer, sizeof(buffer), &len);
+
+    printf("[RECV] err=%d len=%u\n", err, (unsigned)len);
+
+    if (err != ESP_OK || len <= 4) {
+        printf("[RECV] Early return (err=%d, len=%u)\n", err, (unsigned)len);
+        return;  // No data or error
+    }
+
+    const uint8_t channel = buffer[2];
+    const uint8_t seq = buffer[3];
+    const uint8_t* payload = &buffer[4];
+    const size_t payload_len = len - 4;
+
+    printf("[PKT] ch=%u seq=%u len=%u p0=0x%02X p1=0x%02X\n",
+             channel,
+             seq,
+             static_cast<unsigned>(len),
+             payload_len > 0 ? payload[0] : 0,
+             payload_len > 1 ? payload[1] : 0);
+
+    // Parse only sensor report channels
+    if (channel == CHANNEL_REPORTS || channel == CHANNEL_WAKE_REPORTS) {
+        printf("  -> Parsing payload...\n");
+        bno08x_parse_sensor_report(payload, payload_len);
+    } else {
+        printf("  -> Ignoring non-report channel\n");
+    }
+}
+
+void update_imu_data() {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return;
+    }
+
+    printf("[UPDATE_IMU] Polling...\n");
+    // Drain a few queued packets each cycle so 100Hz reports don't back up.
+    for (int i = 0; i < 4; ++i) {
+        bno08x_poll_data();
+    }
+    printf("[UPDATE_IMU] Done\n");
+}
+
+void init_imu() {
+    printf("[INIT_IMU] Starting...\n");
+    if (s_imu_initialized) {
+        printf("[INIT_IMU] Already initialized\n");
+        return;
+    }
+
+    // Ensure I2C bus is initialized
+    if (!s_i2c_initialized) {
+        printf("[INIT_IMU] I2C not initialized, calling init_pwm_driver...\n");
+        init_pwm_driver();  // This initializes the I2C bus
+    }
+    printf("[INIT_IMU] I2C bus ready\n");
+
+    // Try primary address first
+    i2c_device_config_t imu_cfg = {};
+    imu_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    imu_cfg.device_address = BNO08X_I2C_ADDR;
+    imu_cfg.scl_speed_hz = I2C_CLOCK_HZ;
+
+    esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &imu_cfg, &s_imu_device);
+    
+    if (err != ESP_OK) {
+        // Try alternate address
+        serial_print("BNO08x not found at 0x4A, trying 0x4B...\n");
+        imu_cfg.device_address = BNO08X_I2C_ADDR_ALT;
+        err = i2c_master_bus_add_device(s_i2c_bus, &imu_cfg, &s_imu_device);
+        
+        if (err != ESP_OK) {
+            serial_print("ERROR: BNO08x IMU not detected on I2C bus\n");
+            s_imu_device = nullptr;
+            return;
+        }
+    }
+
+    ESP_LOGI("IMU", "BNO08x attached at I2C address 0x%02X", imu_cfg.device_address);
+
+
+    // Wait for IMU to be ready
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Soft reset the device
+    uint8_t reset_cmd[] = {0x01};
+    err = bno08x_send_packet(CHANNEL_EXECUTABLE, reset_cmd, 1);
+    if (err != ESP_OK) {
+        ESP_LOGE("IMU", "Failed to send soft reset, err=%s", esp_err_to_name(err));
+    }
+    vTaskDelay(pdMS_TO_TICKS(300));
+
+    // Clear any pending data
+    for (int i = 0; i < 5; i++) {
+        uint8_t dummy[256];
+        size_t len;
+        bno08x_receive_packet(dummy, sizeof(dummy), &len);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    printf("BNO08x IMU detected and reset successfully\n");
+
+    // Enable sensor reports at 100Hz (10000 microseconds)
+    uint32_t report_interval_us = 10000;
+    
+    err = bno08x_enable_report(SENSOR_REPORTID_ROTATION_VECTOR, report_interval_us);
+    if (err != ESP_OK) return;
+    vTaskDelay(pdMS_TO_TICKS(50));
+    
+    err = bno08x_enable_report(SENSOR_REPORTID_GYROSCOPE, report_interval_us);
+    if (err != ESP_OK) return;
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    err = bno08x_enable_report(SENSOR_REPORTID_ACCELEROMETER, report_interval_us);
+    if (err != ESP_OK) return;
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    err = bno08x_enable_report(SENSOR_REPORTID_MAGNETIC_FIELD, report_interval_us);
+    if (err != ESP_OK) return;
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    s_imu_initialized = true;
+    printf("[INIT_IMU] Initialization complete!\n");
 }
 
 void init_comms() {
-    // --- REFACTORED WIFI SETUP FUNCTION ---
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -328,6 +682,79 @@ void init_comms() {
 
 
 
+
+// IMU data reading functions
+bool imu_data_available() {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return false;
+    }
+    
+    update_imu_data();
+    
+    return s_imu_data.quat_valid || s_imu_data.gyro_valid || 
+           s_imu_data.accel_valid || s_imu_data.mag_valid;
+}
+
+bool read_imu_quaternion(float& w, float& x, float& y, float& z) {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return false;
+    }
+    
+    if (s_imu_data.quat_valid) {
+        w = s_imu_data.quat_w;
+        x = s_imu_data.quat_x;
+        y = s_imu_data.quat_y;
+        z = s_imu_data.quat_z;
+        return true;
+    }
+    
+    return false;
+}
+
+bool read_imu_angular_velocity(float& x, float& y, float& z) {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return false;
+    }
+    
+    if (s_imu_data.gyro_valid) {
+        x = s_imu_data.gyro_x;
+        y = s_imu_data.gyro_y;
+        z = s_imu_data.gyro_z;
+        return true;
+    }
+    
+    return false;
+}
+
+bool read_imu_accelerometer(float& x, float& y, float& z) {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return false;
+    }
+    
+    if (s_imu_data.accel_valid) {
+        x = s_imu_data.accel_x;
+        y = s_imu_data.accel_y;
+        z = s_imu_data.accel_z;
+        return true;
+    }
+    
+    return false;
+}
+
+bool read_imu_magnetometer(float& x, float& y, float& z) {
+    if (!s_imu_initialized || s_imu_device == nullptr) {
+        return false;
+    }
+    
+    if (s_imu_data.mag_valid) {
+        x = s_imu_data.mag_x;
+        y = s_imu_data.mag_y;
+        z = s_imu_data.mag_z;
+        return true;
+    }
+    
+    return false;
+}
 
 void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     for (gpio_num_t pin : ADC_CHANNEL_SELECT) {

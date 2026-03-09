@@ -348,3 +348,32 @@ void test_5() {
 }
 
 
+// ...existing code...
+
+void test_imu() {
+    printf("\nStarting IMU test\n");
+
+    while (true) {
+        // Poll IMU once per cycle (10 ms)
+        
+        imu_data_available();
+
+        float qw, qx, qy, qz;
+        float gx, gy, gz;
+
+        bool have_q = read_imu_quaternion(qw, qx, qy, qz);
+        bool have_g = read_imu_angular_velocity(gx, gy, gz);
+
+        if (have_q || have_g) {
+            printf("IMU | QUAT(%0.4f, %0.4f, %0.4f, %0.4f) | GYRO(%0.4f, %0.4f, %0.4f)\n",
+                   qw, qx, qy, qz, gx, gy, gz);
+        } else {
+            printf("IMU: no fresh data yet\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+    }
+}
+
+// ...existing code...
+
