@@ -87,7 +87,7 @@ void test_adc() {
 
 
 void test_0() {
-    serial_print("Starting test 0: Basic control loop timing\n");
+    printf("Starting test 0: Basic control loop timing\n");
 
     GlobalState& instance = GlobalState::instance();
 
@@ -96,8 +96,8 @@ void test_0() {
     float w = 2.0f * 3.14159f * 1000;  // 2*pi for sine wave, freq controlled by delay
     while (true) {
         // set pwm to current value of sin wave (0-255 range)
-        int pwm_value = static_cast<int>((std::sin(num_deltas * delta * w) + 1.0f) * 2048.5f);
-        // int pwm_value = 2555;
+        // int pwm_value = static_cast<int>((std::sin(num_deltas * delta * w) + 1.0f) * 2048.5f);
+        int pwm_value = 2555;
         setPWMOutputs({1}, {pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value});
         printf("Setting value: %d (sin arg: %f)\n", pwm_value, num_deltas * delta * w);
         vTaskDelay(pdMS_TO_TICKS(4));  // Delay ~0.3ms via FreeRTOS
