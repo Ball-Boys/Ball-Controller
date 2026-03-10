@@ -31,6 +31,7 @@ Orientation GlobalState::getOrientation() const {
 }
 
 void GlobalState::setOrientation(const Orientation& value) {
+    printf("Setting orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", value.w, value.x, value.y, value.z);
     orientationHistory.push_back(value);
 }
 
@@ -67,6 +68,7 @@ AngularVelocity GlobalState::getAngularVelocity() const {
 }
 
 void GlobalState::setAngularVelocity(const AngularVelocity& value) {
+    printf("Setting angular velocity: x=%.3f y=%.3f z=%.3f\n", value.x, value.y, value.z);
     angularVelocityHistory.push_back(value);
 }
 
