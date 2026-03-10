@@ -25,7 +25,7 @@ GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, P
 Orientation GlobalState::getOrientation() const {
     // Gets the latest orientation from the list
     if (orientationHistory.empty()) {
-        throw std::runtime_error("No orientation data available");
+        return Orientation(1.0f, 0.0f, 0.0f, 0.0f); // Default orientation if none available
     }
     return orientationHistory.back();
 }
@@ -61,7 +61,7 @@ const std::vector<Orientation>& GlobalState::getOrientationHistory(int last_n) c
 AngularVelocity GlobalState::getAngularVelocity() const {
     // Gets the latest angular velocity from the list
     if (angularVelocityHistory.empty()) {
-        throw std::runtime_error("No angular velocity data available");
+        return AngularVelocity(0.0f, 0.0f, 0.0f); // Default angular velocity if none available
     }
     return angularVelocityHistory.back();
 }

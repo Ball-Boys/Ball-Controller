@@ -354,24 +354,17 @@ void test_imu() {
     printf("\nStarting IMU test\n");
 
     while (true) {
-        // Poll IMU once per cycle (10 ms)
-        
-        imu_data_available();
-
-        float qw, qx, qy, qz;
-        float gx, gy, gz;
-
-        bool have_q = read_imu_quaternion(qw, qx, qy, qz);
-        bool have_g = read_imu_angular_velocity(gx, gy, gz);
-
-        if (have_q || have_g) {
-            printf("IMU | QUAT(%0.4f, %0.4f, %0.4f, %0.4f) | GYRO(%0.4f, %0.4f, %0.4f)\n",
-                   qw, qx, qy, qz, gx, gy, gz);
-        } else {
-            printf("IMU: no fresh data yet\n");
-        }
-
         vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+        // Poll IMU once per cycle (10 ms)
+        readIMU(); // Ensure we process incoming IMU data
+
+        GlobalState& instance = GlobalState::instance();
+        Orientation orientation = instance.getOrientation();
+        AngularVelocity angularVelocity = instance.getAngularVelocity();
+        printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", instance.getOrientation().w, instance.getOrientation().x, instance.getOrientation().y, instance.getOrientation().z);
+        printf("Angular Velocity: x=%.3f y=%.3f z=%.3f\n", instance.getAngularVelocity().x, instance.getAngularVelocity().y, instance.getAngularVelocity().z);
+
+        
     }
 }
 
