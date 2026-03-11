@@ -29,6 +29,9 @@ void bc_bench_test_5();
 void bc_serial_print(const char* msg);
 void bc_udp_sender_task(void* param);
 
+void bc_run_state_machine_connection();
+void bc_run_state_machine_testing();
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
