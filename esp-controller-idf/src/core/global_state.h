@@ -299,7 +299,7 @@ public:
     Vector3 getIdealDirection() const;
     void setIdealDirection(const Vector3& value);
 
-    void kill();
+    void set_kill(bool value);
     bool isKilled() const;
 
 private:
@@ -318,6 +318,7 @@ private:
     // Timing instrumentation
     
 
+    mutable SemaphoreHandle_t killedMutex;
     bool killed = false;
 };
 

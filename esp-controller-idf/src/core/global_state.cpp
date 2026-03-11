@@ -17,6 +17,7 @@ GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, P
     : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
       idealDirection(0.0f, 0.0f, 0.0f) {
+        killedMutex = xSemaphoreCreateMutex();
     orientationHistory.reserve(1000);
 }
 
@@ -324,10 +325,15 @@ void GlobalState::setIdealDirection(const Vector3& value) {
     idealDirection = value;
 }
 
-void GlobalState::kill() {
-    killed = true;
+void GlobalState::set_kill(bool value) {
+    xSemaphoreTake(this->killedMutex, portMAX_DELAY);
+    this->killed = value;
+    xSemaphoreGive(this->killedMutex);
 }
 
 bool GlobalState::isKilled() const {
-    return killed;
+    xSemaphoreTake(this->killedMutex, portMAX_DELAY);
+    bool isKilled = this->killed;
+    xSemaphoreGive(this->killedMutex);
+    return isKilled;
 }
