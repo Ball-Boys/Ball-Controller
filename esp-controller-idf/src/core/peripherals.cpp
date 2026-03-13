@@ -147,6 +147,11 @@ void init_pwm_driver() {
         return;
     }
 
+    // Set GPIO 13 to LOW
+    gpio_reset_pin(GPIO_NUM_13);
+    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_13, 1);
+
     i2c_master_bus_config_t bus_cfg = {};
     bus_cfg.i2c_port = I2C_NUM_0;
     bus_cfg.sda_io_num = I2C_SDA_PIN;
@@ -160,9 +165,9 @@ void init_pwm_driver() {
     i2c_new_master_bus(&bus_cfg, &s_i2c_bus);
     s_i2c_initialized = true;
 
-    // Set GPIO 13 to LOW
-    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_13, 0);
+    gpio_set_level(GPIO_NUM_13, 0); // Set GPIO 13 LOW after initializing I2C bus (if needed by the hardware)
+
+    
 
     // Initialize both PCA9685 devices (0x40 and 0x41)
     const uint8_t addresses[] = {0x40, 0x41};
@@ -181,20 +186,30 @@ void init_pwm_driver() {
             uint8_t PCA9685_MODE1 = 0x00;
             uint8_t PCA9685_PRESCALE = 0xFE;
             uint8_t restart_mode = 0b00000000;
-
-            // 5. Finalize Restart
-            uint8_t cmd_restart[] = {PCA9685_MODE1, restart_mode};
-            i2c_master_transmit(handle, cmd_restart, 2, 10);
+ 
 
             // 1. Wake up the device (Set MODE1)
             uint8_t cmd_wake[] = {0x00, 0x00}; 
             i2c_master_transmit(handle, cmd_wake, 2, 10);
+
+            uint8_t cmd_wake2[] = {0x01, 0x14};
+            i2c_master_transmit(handle, cmd_wake2, 2, 10);
+
 
             // 2. Set LEDOUT registers to enable PWM (0xAA sets all 4 LEDs in a reg to PWM mode)
             // We need to do this for LEDOUT0, 1, 2, and 3 (Registers 0x14 - 0x17)
             for (uint8_t reg = 0x14; reg <= 0x17; reg++) {
                 uint8_t cmd_ledout[] = {reg, 0xAA}; // 0xAA = 10101010 in binary
                 i2c_master_transmit(handle, cmd_ledout, 2, 10);
+            }
+
+            // 5. Finalize Restart
+            uint8_t cmd_restart[] = {PCA9685_MODE1, restart_mode};
+            i2c_master_transmit(handle, cmd_restart, 2, 10);
+
+            for (int channel = 0; channel < 16; channel++) {
+                pca9685_set_pwm(addr, channel, 0); // Start with all channels at 0
+                vTaskDelay(pdMS_TO_TICKS(1)); // Short delay between channel setups
             }
 
             
@@ -319,11 +334,13 @@ void init_comms() {
 
 
 void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
+    init_pwm_driver();
+
     for (gpio_num_t pin : ADC_CHANNEL_SELECT) {
         init_adc(adc_clock_speed_hz, pin);
     }
 
-    init_pwm_driver();
+    
     init_imu();
     init_comms();
     serial_init(uart_baud_rate);

@@ -61,14 +61,12 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
 
 
 
-
-
     for (size_t i = 0; i < count; ++i) {
         int magnetId = magnetIds[i];
         int value = values[i];
         PWMAddress pwmAddress = state.getPWMAddress(magnetId);
-        value = value / 16;
-        pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, value);
+        float duty_cycle_256 = value / 16.0f;
+        pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, static_cast<int>(duty_cycle_256));
         // printf("Set PWM for magnet %d (I2C addr: 0x%02X, channel: %d) to value %d\n", magnetId, pwmAddress.driver_i2c_address, pwmAddress.channel, value);
 
     }
