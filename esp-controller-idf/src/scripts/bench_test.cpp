@@ -368,5 +368,15 @@ void test_imu() {
     }
 }
 
-// ...existing code...
+void test_that_wiggle() {
+
+    GlobalState& instance = GlobalState::instance();
+    while (true) {
+        instance.setControl(ControlOutputs(1, 10)); // Set magnet to mid power
+        run_control_loop_for_seconds(instance, 0.3f); // Run for 20 seconds
+
+        instance.setControl(ControlOutputs(1, 0)); // Set magnet to mid power
+        run_control_loop_for_seconds(instance, 0.3f); // Run for 20 seconds
+    }
+}
 
