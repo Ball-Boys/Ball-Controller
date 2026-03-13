@@ -362,7 +362,7 @@ void test_imu() {
         Orientation orientation = instance.getOrientation();
         AngularVelocity angularVelocity = instance.getAngularVelocity();
         printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", instance.getOrientation().w, instance.getOrientation().x, instance.getOrientation().y, instance.getOrientation().z);
-        printf("Angular Velocity: x=%.3f y=%.3f z=%.3f\n", instance.getAngularVelocity().x, instance.getAngularVelocity().y, instance.getAngularVelocity().z);
+        // printf("Angular Velocity: x=%.3f y=%.3f z=%.3f\n", instance.getAngularVelocity().x, instance.getAngularVelocity().y, instance.getAngularVelocity().z);
 
         
     }

@@ -380,7 +380,6 @@ void parse_rotation_vector(const uint8_t* data) {
 
     instance.setOrientation(Orientation(r, i, j, k));
 
-    ESP_LOGI(TAG, "Quaternion: [%.3f, %.3f, %.3f, %.3f]", r, i, j, k);
 }
 
 void parse_accelerometer(const uint8_t* data) {
@@ -403,7 +402,6 @@ void parse_gyroscope(const uint8_t* data) {
 
     instance.setAngularVelocity(AngularVelocity(x, y, z));
 
-    ESP_LOGI(TAG, "Gyro: X=%.2f Y=%.2f Z=%.2f", x, y, z);
 }
 
 static void rxAssemble(const uint8_t* packet, uint16_t len) {
@@ -444,7 +442,6 @@ void process_channel_3(const uint8_t* payload, uint16_t payload_len) {
 
     while (i < payload_len) {
         uint8_t report_id = payload[i];
-        printf("[CH3] Report ID: 0x%02X at index %u\n", report_id, (unsigned)i);
         
 
         switch (report_id) {
@@ -503,7 +500,6 @@ void shtp_service() {
     // 2. Perform a full read of the entire packet (header + payload)
     // The FSM30X requires the full length to be read to clear its internal buffer.
     err = i2c_master_receive(s_imu_device, packet_scratchpad, packet_len, 100);
-    printf("[SHTP] Read packet of length %u (err=%d)\n", (unsigned)packet_len, err);
     if (err == ESP_OK) {
         rxAssemble(packet_scratchpad, packet_len);
     }
@@ -540,6 +536,9 @@ esp_err_t imu_send_packet(i2c_master_dev_handle_t dev, uint8_t channel, uint8_t*
  */
 void init_imu() {
     ESP_LOGI(TAG, "Starting IMU Hardware Reset...");
+
+    gpio_set_direction(GPIO_NUM_25, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_25, 1);
 
 
     // Ensure I2C bus is initialized f

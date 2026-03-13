@@ -17,7 +17,8 @@ GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, P
     : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
       idealDirection(0.0f, 0.0f, 0.0f) {
-    orientationHistory.reserve(1000);
+        orientationHistory.reserve(kMaxOrientationHistorySize);
+        angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
 }
 
 // ============= Orientation methods =============
@@ -31,8 +32,10 @@ Orientation GlobalState::getOrientation() const {
 }
 
 void GlobalState::setOrientation(const Orientation& value) {
-    printf("Setting orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", value.w, value.x, value.y, value.z);
     orientationHistory.push_back(value);
+    if (orientationHistory.size() > kMaxOrientationHistorySize) {
+        orientationHistory.erase(orientationHistory.begin());
+    }
 }
 
 void GlobalState::resetOrientation() {
@@ -68,8 +71,10 @@ AngularVelocity GlobalState::getAngularVelocity() const {
 }
 
 void GlobalState::setAngularVelocity(const AngularVelocity& value) {
-    printf("Setting angular velocity: x=%.3f y=%.3f z=%.3f\n", value.x, value.y, value.z);
     angularVelocityHistory.push_back(value);
+    if (angularVelocityHistory.size() > kMaxAngularVelocityHistorySize) {
+        angularVelocityHistory.erase(angularVelocityHistory.begin());
+    }
 }
 
 void GlobalState::resetAngularVelocity() {
