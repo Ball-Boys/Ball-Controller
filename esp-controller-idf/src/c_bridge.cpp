@@ -6,6 +6,9 @@
 #include "utils/utils.h"
 #include "comms/wifi_client.h"
 
+void run_state_machine_connection();
+void run_state_machine_testing();
+
 void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     init_peripherals(adc_clock_speed_hz, uart_baud_rate);
 }
@@ -82,6 +85,14 @@ void bc_udp_sender_task(void* param) {
 void bc_bench_test_imu() {
     test_imu();
     vTaskDelete(NULL);
+}
+
+void bc_run_state_machine_connection() {
+    run_state_machine_connection();
+}
+
+void bc_run_state_machine_testing() {
+    run_state_machine_testing();
 }
 
 
