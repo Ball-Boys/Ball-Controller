@@ -12,3 +12,4 @@ void test_4();
 void test_stress_20ms();
 void test_quad_magnet_stress();
 void test_5();
+void test_imu();

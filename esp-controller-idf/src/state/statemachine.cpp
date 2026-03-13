@@ -185,7 +185,7 @@ State* RunningState::execute() {
 State* TestingState::execute() {
     // Run scripts through it. No state switching ever.
     
-            test_adc_isolated();
+            test_imu();
             //test_1();
             //test_stress_20ms();
             //test_4();
