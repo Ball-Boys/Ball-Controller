@@ -130,6 +130,16 @@ void core1LoopTask(void* param) {
             break; // Exit the loop to end the task
         }
         // check IMU and get value
+        IMUData imu_data = shtp_service();
+
+        for (const auto& angular_velocity : imu_data.angular_velocity) {
+            instance.setAngularVelocity(angular_velocity);
+        }
+
+        for (const auto& orientation : imu_data.orientation) {
+            instance.setOrientation(orientation);
+        }
+
 
         // compute control outputs
         ControlOutputs control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
