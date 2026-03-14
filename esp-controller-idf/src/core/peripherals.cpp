@@ -360,8 +360,6 @@ static esp_err_t bno08x_send_packet(uint8_t channel, const uint8_t* data, size_t
 }
 
 
-
-
 // Persistant state for assembling fragmented packets
 static uint8_t s_assembly_buffer[MAX_ASSEMBLY_LEN];
 static uint16_t s_assembly_cursor = 0;
@@ -648,6 +646,7 @@ void init_imu() {
 
 
 
+
 void init_comms() {
 
     esp_err_t ret = nvs_flash_init();
@@ -703,8 +702,6 @@ void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     for (gpio_num_t pin : ADC_CHANNEL_SELECT) {
         init_adc(adc_clock_speed_hz, pin);
     }
-
-    
     
     init_comms();
 

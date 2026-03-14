@@ -16,11 +16,6 @@ void app_main() {
         // vTaskDelay(pdMS_TO_TICKS(500));
         // gpio_set_level(GPIO_NUM_34, 0);
         // vTaskDelay(pdMS_TO_TICKS(500));
-
-    
- 
-
-
     bc_init_peripherals(100000, 115200); // Initialize peripherals with a 5 MHz clock speed for the ADC
     // // xTaskCreate(udp_sender_task, "udp_sender", 4096, NULL, 5, NULL);
 
