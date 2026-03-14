@@ -2,4 +2,4 @@
 
 #include "../core/global_state.h"
 
-ControlOutputs computeControl(const Orientation& current, const float targetDirection[3]);
+ControlOutputs computeControl(const std::vector<Orientation> orientation_history, const std::vector<AngularVelocity> angular_velocity_history, const Vector3 targetDirection);

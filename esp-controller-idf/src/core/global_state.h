@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <driver/gpio.h>
 #include <set>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 
 struct Orientation {
@@ -76,9 +78,12 @@ class MagnetInfo {
         std::vector<CurrentInfo> flushedCurrentHistory;
 
         int controlIntegral = 0;
+        mutable SemaphoreHandle_t currentHistoryMutex;
         
     public:
         static constexpr size_t kMaxCurrentHistorySize = 100;  // Rolling buffer max size
+        static constexpr size_t kMaxOrientationHistorySize = 500;  // Rolling buffer max size
+        static constexpr size_t kMaxAngularVelocityHistorySize = 500;  // Rolling buffer max size
         
         const int id;
         const Vector3 position;
@@ -92,10 +97,15 @@ class MagnetInfo {
         const PWMAddress pwmAddress;
 
         MagnetInfo(int id, const Vector3& position, const float dt, const ADCAddress& adcAddress, const PWMAddress& pwmAddress) 
-            : id(id), position(position), dt(dt), adcAddress(adcAddress), pwmAddress(pwmAddress) {}
+            : id(id), position(position), dt(dt), adcAddress(adcAddress), pwmAddress(pwmAddress) {
+            currentHistoryMutex = xSemaphoreCreateMutex();
+        }
 
-        const std::vector<CurrentInfo>& getCurrentHistory() const {
-            return activeCurrentHistory;
+        std::vector<CurrentInfo> getCurrentHistory() const {
+            xSemaphoreTake(currentHistoryMutex, portMAX_DELAY);
+            std::vector<CurrentInfo> copy = activeCurrentHistory;
+            xSemaphoreGive(currentHistoryMutex);
+            return copy;
         }
 
 
@@ -105,12 +115,14 @@ class MagnetInfo {
         }
 
         void flushCurrentHistory() {
+            xSemaphoreTake(currentHistoryMutex, portMAX_DELAY);
             // flushedCurrentHistory.insert(flushedCurrentHistory.end(), 
             //                              activeCurrentHistory.begin(), 
             //                              activeCurrentHistory.end());
             activeCurrentHistory.clear();
             // RESTING THE integral terms someitmes causes the PWM driver to cvhange i frequency (has not been observed since)
             // controlIntegral = 0;
+            xSemaphoreGive(currentHistoryMutex);
         }
 
         const std::vector<CurrentInfo>& getFlushedCurrentHistory() const {
@@ -121,9 +133,12 @@ class MagnetInfo {
 
         const std::vector<CurrentInfo>& getCurrentHistory(int last_n) const {
             static std::vector<CurrentInfo> subset;
+            xSemaphoreTake(currentHistoryMutex, portMAX_DELAY);
+            
             subset.clear();
             
             if (last_n <= 0) {
+                xSemaphoreGive(currentHistoryMutex);
                 return subset;
             }
             
@@ -131,6 +146,8 @@ class MagnetInfo {
             subset.insert(subset.end(), 
                           activeCurrentHistory.begin() + start_idx, 
                           activeCurrentHistory.end());
+            
+            xSemaphoreGive(currentHistoryMutex);
             return subset;
         }
 
@@ -150,11 +167,13 @@ class MagnetInfo {
         }
 
         void setCurrentValue(const CurrentInfo& value) {
+            xSemaphoreTake(currentHistoryMutex, portMAX_DELAY);
             activeCurrentHistory.push_back(value);
             // Remove oldest entry if size exceeds max
             if (activeCurrentHistory.size() > kMaxCurrentHistorySize) {
                 activeCurrentHistory.erase(activeCurrentHistory.begin());
             }
+            xSemaphoreGive(currentHistoryMutex);
         }
 
         void setControlValue(const ControlOutputs& value) {
@@ -232,6 +251,8 @@ struct MagnetList {
 class GlobalState {
 public:
     static GlobalState& instance();
+    static constexpr size_t kMaxOrientationHistorySize = 500;
+    static constexpr size_t kMaxAngularVelocityHistorySize = 500;
 
     float fastLoopTime = 0.000650f; // 650 microseconds
     float slowLoopTime = 0.01f; // 10 milliseconds
@@ -282,7 +303,7 @@ public:
     Vector3 getIdealDirection() const;
     void setIdealDirection(const Vector3& value);
 
-    void kill();
+    void set_kill(bool value);
     bool isKilled() const;
 
 private:
@@ -301,6 +322,7 @@ private:
     // Timing instrumentation
     
 
+    mutable SemaphoreHandle_t killedMutex;
     bool killed = false;
 };
 

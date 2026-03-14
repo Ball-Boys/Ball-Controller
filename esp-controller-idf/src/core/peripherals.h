@@ -21,6 +21,9 @@ static gpio_num_t I2C_SDA_PIN = GPIO_NUM_21;
 static gpio_num_t I2C_SCL_PIN = GPIO_NUM_22;
 static int I2C_CLOCK_HZ = 400000;
 
+#define SHTP_HEADER_SIZE 4
+#define MAX_PACKET_LEN 512
+#define MAX_ASSEMBLY_LEN 1024
 
 
 static const int PWM_OUTPUT_BOUNDS[2] = {0, 255};
@@ -47,3 +50,9 @@ uint16_t adc1283_read(gpio_num_t chip_select, int channel);
 void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255);
 
 
+
+void shtp_service();
+void parse_rotation_vector(const uint8_t* data);
+void parse_accelerometer(const uint8_t* data);
+void process_channel_3(const uint8_t* payload, uint16_t payload_len);
+void imu_purge_buffer();

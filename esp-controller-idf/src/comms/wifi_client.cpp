@@ -9,7 +9,7 @@
 
 
 
-void udp_sender_task() {
+void udp_sender_task(void *pvParameters) {
     struct sockaddr_in dest_addr;
     dest_addr.sin_addr.s_addr = inet_addr(RECV_IP_ADDR);
     dest_addr.sin_family = AF_INET;
@@ -18,14 +18,11 @@ void udp_sender_task() {
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     
     static ball_data_packet out_data;
-    int i = 0;
+
     while (1) {
-        printf("Sending packet %d\n", i);
         extract_data_from_globals(&out_data);
-        out_data.timestamp = i;
         sendto(sock, &out_data, sizeof(out_data), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        vTaskDelay(pdMS_TO_TICKS(100));  // Send every 100ms (10Hz)
-        i++;
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Send at 10Hz
     }
 }
 

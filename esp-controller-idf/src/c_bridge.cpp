@@ -5,6 +5,7 @@
 #include "scripts/bench_test.h"
 #include "utils/utils.h"
 #include "comms/wifi_client.h"
+#include "state/statemachine.h"
 
 void bc_init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     init_peripherals(adc_clock_speed_hz, uart_baud_rate);
@@ -74,8 +75,22 @@ void bc_serial_print(const char* msg) {
     serial_print(msg);
 }
 
-void bc_udp_sender_task() {
-    udp_sender_task();
+void bc_udp_sender_task(void* param) {
+    udp_sender_task(param);
+    vTaskDelete(NULL);
+}
+
+void bc_bench_test_imu() {
+    test_imu();
+    vTaskDelete(NULL);
+}
+
+void bc_run_state_machine_connection() {
+    run_state_machine_connection();
+}
+
+void bc_run_state_machine_testing() {
+    run_state_machine_testing();
 }
 
 
