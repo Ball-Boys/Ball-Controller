@@ -373,7 +373,7 @@ void test_that_wiggle() {
 
     GlobalState& instance = GlobalState::instance();
 
-    xTaskCreate(udp_sender_task, "core1_loop", 8192, NULL, 5, NULL);
+    // xTaskCreate(udp_sender_task, "core1_loop", 8192, NULL, 5, NULL);
 
     while (true) {
         instance.setControl(ControlOutputs(9, 3)); // Set magnet to mid power
