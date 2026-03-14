@@ -2,6 +2,7 @@
 #include "core/peripherals.h"
 #include "core/global_state.h"
 #include "mag_selection_control/control_algorithm.h"
+#include "calibration/calibration.h"
 #include <esp_timer.h>
 #include <comms/wifi_client.h>
 #include <scripts/bench_test.h>
@@ -17,78 +18,92 @@ class CalibrateState;
 class RunningState;
 class TestingState;
 
-
-
 // ---------------------------------------------------------
 // 1. Base State Interface
 // ---------------------------------------------------------
-class State {
+class State
+{
 public:
     virtual ~State() = default;
     // Each state runs its own blocking loop and returns a pointer to the NEXT state
-    virtual State* execute() = 0; 
+    virtual State *execute() = 0;
 };
 
 // ---------------------------------------------------------
 // 2. Concrete States
 // ---------------------------------------------------------
 
-class ConnectionState : public State {
+class ConnectionState : public State
+{
 public:
-    static ConnectionState& getInstance() {
+    static ConnectionState &getInstance()
+    {
         static ConnectionState instance;
         return instance;
     }
 
-    State* execute() override;
+    State *execute() override;
+
 private:
     ConnectionState() = default;
 };
 
-class StandbyState : public State {
+class StandbyState : public State
+{
 public:
-    static StandbyState& getInstance() {
+    static StandbyState &getInstance()
+    {
         static StandbyState instance;
         return instance;
     }
 
-    State* execute() override;
+    State *execute() override;
+
 private:
     StandbyState() = default;
 };
 
-class CalibrateState : public State {
+class CalibrateState : public State
+{
 public:
-    static CalibrateState& getInstance() {
+    static CalibrateState &getInstance()
+    {
         static CalibrateState instance;
         return instance;
     }
 
-    State* execute() override;
+    State *execute() override;
+
 private:
     CalibrateState() = default;
 };
 
-class RunningState : public State {
+class RunningState : public State
+{
 public:
-    static RunningState& getInstance() {
+    static RunningState &getInstance()
+    {
         static RunningState instance;
         return instance;
     }
 
-    State* execute() override;
+    State *execute() override;
+
 private:
     RunningState() = default;
 };
 
-class TestingState : public State {
+class TestingState : public State
+{
 public:
-    static TestingState& getInstance() {
+    static TestingState &getInstance()
+    {
         static TestingState instance;
         return instance;
     }
 
-    State* execute() override;
+    State *execute() override;
+
 private:
     TestingState() = default;
 };
@@ -97,35 +112,115 @@ private:
 // 3. State Implementations (The Meat)
 // ---------------------------------------------------------
 
-State* ConnectionState::execute() {
-    init_peripherals(I2C_CLOCK_HZ, SERIAL_BAUD_RATE); // Initialize peripherals (Wi-Fi, IMU, etc.)
+State *ConnectionState::execute()
+{
+    printf("=== ConnectionState: Starting WiFi connection ===\n");
+    init_peripherals(I2C_CLOCK_HZ, SERIAL_BAUD_RATE);
 
-    
-    // TODO: Implement WiFi connection handshake here. 
-        
+    // WiFi is initialized in init_peripherals and started with AP mode
+    // Wait for WiFi to stabilize
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    printf("WiFi connection established, moving to StandbyState\n");
+    GlobalState &state = GlobalState::instance();
+    state.setSystemState(GlobalState::SystemState::STANDBY);
+
     return &StandbyState::getInstance();
-        
-    
 }
 
-State* StandbyState::execute() {
-    // TODO: Implement logic to wait for a command from the server to start calibration or running mode.
-    return &CalibrateState::getInstance(); // Placeholder to transition to calibration immediately for now
+State *StandbyState::execute()
+{
+    printf("=== StandbyState: Waiting for calibration command from dashboard ===\n");
+    GlobalState &state = GlobalState::instance();
+    state.setSystemState(GlobalState::SystemState::STANDBY);
+
+    // Start UDP receiver task to listen for commands
+    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
+
+    // Wait for calibration request from dashboard
+    while (!state.getCalibrationRequested())
+    {
+        vTaskDelay(pdMS_TO_TICKS(100)); // Check every 100ms
+    }
+
+    state.clearCalibrationRequest();
+    printf("Received calibration command, moving to CalibrateState\n");
+
+    return &CalibrateState::getInstance();
 }
 
-State* CalibrateState::execute() {
-    // TODO: implement actual calibration logic here
-    GlobalState& global = GlobalState::instance();
-    global.setOffset({1.0f, 0.0f, 0.0f, 0.0f}); // Placeholder to set zero offset immediately for now
+State *CalibrateState::execute()
+{
+    printf("=== CalibrateState: Running calibration sequence ===\n");
+    GlobalState &global = GlobalState::instance();
+    global.setSystemState(GlobalState::SystemState::CALIBRATION);
+
+    // Create calibration sequence
+    CalibrationSequence calibration;
+
+    // Start UDP receiver task to listen for user input
+    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
+
+    // Run calibration loop
+    while (!calibration.isCalibrated())
+    {
+        // Get the next magnet to fire
+        int magnet_id = calibration.startCalibrationStep();
+
+        if (magnet_id < 0)
+        {
+            printf("Calibration complete!\n");
+            break;
+        }
+
+        // TODO: Apply magnet current to fire the selected magnet
+        // For now, just a placeholder
+        printf("Firing magnet %d for calibration\n", magnet_id);
+
+        // Wait for user input from dashboard (set_direction command)
+        global.clearCalibrationInput();
+        while (!global.getCalibrationInputAvailable())
+        {
+            vTaskDelay(pdMS_TO_TICKS(50)); // Wait for input
+        }
+
+        // Get user input and current orientation
+        Vector3 user_input = global.getCalibrationInput();
+        global.clearCalibrationInput();
+
+        Orientation current_q = global.getOrientation();
+        Quaternion q(current_q.w, current_q.x, current_q.y, current_q.z);
+
+        // Complete this calibration step
+        calibration.completeCalibrationStep(user_input.x, user_input.y, q);
+
+        printf("Calibration step %d/%d complete\n",
+               calibration.getCurrentStep(), calibration.getMaxSteps());
+    }
+
+    printf("Calibration sequence finished, waiting for start command...\n");
+
+    // Wait for start command to move to running state
+    while (!global.getStartRequested())
+    {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    global.clearStartRequest();
+    printf("Received start command, moving to RunningState\n");
+
     return &RunningState::getInstance();
 }
 
-void core1LoopTask(void* param) {
+void core1LoopTask(void *param)
+{
     // This is the task that runs on Core 1 for the 10ms control loop
-    GlobalState& instance = GlobalState::instance();
-    
-    while (true) {
-        if (instance.isKilled()) {
+    GlobalState &instance = GlobalState::instance();
+
+    while (true)
+    {
+        if (instance.isKilled())
+        {
             // Reset the kill flag for the next run
             break; // Exit the loop to end the task
         }
@@ -136,20 +231,21 @@ void core1LoopTask(void* param) {
         instance.setControl(control_outputs);
 
         const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
-    
 
         const int64_t slow_loop_time_us = instance.slowLoopTime * 1000000.0f;
         const int64_t fast_loop_time_us = instance.fastLoopTime * 1000000.0f;
 
         const int64_t end_us = esp_timer_get_time() + slow_loop_time_us;
         int64_t fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
-        
-        while (esp_timer_get_time() < end_us) {
+
+        while (esp_timer_get_time() < end_us)
+        {
             fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
-            
+
             instance.currentControlLoop();
-            
-            if (esp_timer_get_time() < fast_loop_end_us) {
+
+            if (esp_timer_get_time() < fast_loop_end_us)
+            {
                 vTaskDelay(pdMS_TO_TICKS(0.0001f)); // slight smoothing of operation here
             }
         }
@@ -160,65 +256,89 @@ void core1LoopTask(void* param) {
     vTaskDelete(NULL); // Clean up the task
 }
 
-State* RunningState::execute() {
-    // 1. Spawn Core 1 Task here for the 10ms loop
+State *RunningState::execute()
+{
+    printf("=== RunningState: Starting normal operation ===\n");
+    GlobalState &state = GlobalState::instance();
+    state.setSystemState(GlobalState::SystemState::RUNNING);
+
+    // 1. Spawn Core 1 Task for the 10ms control loop
     xTaskCreatePinnedToCore(core1LoopTask, "Core1", 4096, NULL, 1, NULL, 1);
+    printf("Started Core 1 control loop task\n");
 
-    // 2. Core 0 blocks in this loop, sending telemetry
-    while (true) {
-        // TODO: implement 2-way telemetry logic here.
-        // xTaskCreate(udp_sender_task, "udp_sender", 32768, NULL, 5, NULL);
+    // 2. Spawn telemetry sender task (Core 0, send at 10Hz to dashboard)
+    xTaskCreate(udp_sender_task, "udp_sender", 8192, NULL, 4, NULL);
+    printf("Started UDP sender task\n");
 
+    // 3. Spawn command receiver task (Core 0, listen for commands from dashboard)
+    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
+    printf("Started UDP receiver task\n");
 
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Main loop sleeps, task runs independently
+    // Main loop - check for calibration requests periodically
+    while (true)
+    {
+        // Check if recalibration is requested
+        if (state.getCalibrationRequested())
+        {
+            state.clearCalibrationRequest();
+            printf("Recalibration requested, stopping control loop\n");
+
+            // Kill the control task to pause operation
+            state.set_kill(true);
+            vTaskDelay(pdMS_TO_TICKS(500)); // Wait for tasks to clean up
+            state.set_kill(false);
+
+            printf("Returning to CalibrateState for recalibration\n");
+            return &CalibrateState::getInstance();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100)); // Check every 100ms
     }
-        
 
-    
-    
-
-    return &StandbyState::getInstance(); // Placeholder to transition back to standby after running for now
+    return &StandbyState::getInstance(); // Placeholder - should only return if emergency stop occurs
 }
 
-
-
-State* TestingState::execute() {
+State *TestingState::execute()
+{
     // Run scripts through it. No state switching ever.
-    
-            test_imu();
-            //test_1();
-            //test_stress_20ms();
-            //test_4();
-            //test_5();
-    
+
+    test_imu();
+    // test_1();
+    // test_stress_20ms();
+    // test_4();
+    // test_5();
+
     return nullptr; // Should never reach here
 }
 
-
-class StateMachine {
+class StateMachine
+{
 private:
-    State* currentState;
+    State *currentState;
 
 public:
     // Initialize with the starting state (Testing or Connection based on flash)
-    StateMachine(State* initialState) : currentState(initialState) {}
+    StateMachine(State *initialState) : currentState(initialState) {}
 
-    void run() {
-        // The main task loop. It simply executes the current state, 
+    void run()
+    {
+        // The main task loop. It simply executes the current state,
         // which blocks until a transition is needed, then updates the pointer.
-        while (currentState != nullptr) {
+        while (currentState != nullptr)
+        {
             currentState = currentState->execute();
         }
     }
 };
 
-void run_state_machine_connection() {
+void run_state_machine_connection()
+{
     StateMachine machine(&ConnectionState::getInstance());
     machine.run();
 }
 
-void run_state_machine_testing() {
+void run_state_machine_testing()
+{
     StateMachine machine(&TestingState::getInstance());
     machine.run();
 }
-
