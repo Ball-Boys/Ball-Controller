@@ -1,6 +1,7 @@
 #include "bench_test.h"
 
 #include <core/peripherals.h>
+#include "comms/wifi_client.h"
 
 // in test 1 we will sweep through turning each magnet on one by one for 1 second each.
 #include "core/global_state.h"
@@ -371,12 +372,15 @@ void test_imu() {
 void test_that_wiggle() {
 
     GlobalState& instance = GlobalState::instance();
-    while (true) {
-        instance.setControl(ControlOutputs(1, 10)); // Set magnet to mid power
-        run_control_loop_for_seconds(instance, 0.3f); // Run for 20 seconds
 
-        instance.setControl(ControlOutputs(1, 0)); // Set magnet to mid power
-        run_control_loop_for_seconds(instance, 0.3f); // Run for 20 seconds
+    xTaskCreate(udp_sender_task, "core1_loop", 8192, NULL, 5, NULL);
+
+    while (true) {
+        instance.setControl(ControlOutputs(9, 3)); // Set magnet to mid power
+        run_control_loop_for_seconds(instance, 2.0f); // Run for 20 seconds
+
+        instance.setControl(ControlOutputs(9, 0)); // Set magnet to mid power
+        run_control_loop_for_seconds(instance, 2.0f); // Run for 20 seconds
     }
 }
 
