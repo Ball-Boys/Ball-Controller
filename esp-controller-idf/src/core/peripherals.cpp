@@ -657,10 +657,20 @@ void init_comms() {
     ESP_ERROR_CHECK(esp_netif_init());
     
     // Create default event loop (handles wifi events in the background)
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    {
+        esp_err_t _err = esp_event_loop_create_default();
+        if (_err != ESP_OK && _err != ESP_ERR_INVALID_STATE) {
+            ESP_ERROR_CHECK(_err);
+        }
+        // If ESP_ERR_INVALID_STATE, the default loop already exists — continue.
+    }
     
-    // Create the default Wi-Fi Access Point interface
-    esp_netif_create_default_wifi_ap();
+    // Create the default Wi-Fi Access Point interface (if not already created)
+    if (esp_netif_get_handle_from_ifkey("WIFI_AP_DEF") == NULL) {
+        esp_netif_create_default_wifi_ap();
+    } else {
+        ESP_LOGI(TAG, "Default AP netif already exists, skipping creation");
+    }
 
     // Initialize Wi-Fi with default configuration
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -705,6 +715,6 @@ void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     init_comms();
 
     serial_init(uart_baud_rate);
-    init_imu();
+    // init_imu();
     
 }

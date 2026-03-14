@@ -10,14 +10,8 @@ CalibrationSequence::CalibrationSequence()
 {
 }
 
-int CalibrationSequence::startCalibrationStep()
+int CalibrationSequence::startCalibration()
 {
-    // If we've done all steps, calibration is complete
-    if (num_calibration_steps >= MAX_CALIBRATION_STEPS)
-    {
-        return -1;
-    }
-
     // Get the next magnet to fire for calibration
     // For now, we'll get the orientation from global state
     GlobalState &state = GlobalState::instance();
@@ -26,32 +20,19 @@ int CalibrationSequence::startCalibrationStep()
 
     current_magnet_id = controller.getCalibrationMagnet(q);
 
-    printf("Calibration step %d/%d: Firing magnet %d\n",
-           num_calibration_steps + 1, MAX_CALIBRATION_STEPS, current_magnet_id);
+    printf("Calibration: Firing magnet %d\n", current_magnet_id);
 
     return current_magnet_id;
 }
 
 void CalibrationSequence::completeCalibrationStep(float joy_x, float joy_y, const Quaternion &q)
 {
-    if (current_magnet_id < 0)
-    {
-        printf("ERROR: No magnet was fired in this step\n");
-        return;
-    }
-
-    printf("Calibration step %d: User input (%.2f, %.2f)\n",
-           num_calibration_steps + 1, joy_x, joy_y);
+    printf("Calibration result: User input (%.2f, %.2f)\n", joy_x, joy_y);
 
     // Finalize this calibration step with the user's joystick input
     controller.finishCalibration(current_magnet_id, q, joy_x, joy_y);
 
-    // Move to next step
-    num_calibration_steps++;
-    current_magnet_id = -1;
-
-    printf("Calibration step %d complete. Progress: %d/%d\n",
-           num_calibration_steps, num_calibration_steps, MAX_CALIBRATION_STEPS);
+    printf("Calibration complete.\n");
 }
 
 bool CalibrationSequence::isCalibrated() const

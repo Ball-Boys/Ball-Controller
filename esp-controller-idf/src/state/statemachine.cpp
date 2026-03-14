@@ -161,44 +161,31 @@ State *CalibrateState::execute()
     // Start UDP receiver task to listen for user input
     xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
 
-    // Run calibration loop
-    while (!calibration.isCalibrated())
+    // Get the next magnet to fire
+    int magnet_id = calibration.startCalibration();
+
+    // TODO: Apply magnet current to fire the selected magnet
+    // For now, just a placeholder
+    printf("Firing magnet %d for calibration\n", magnet_id);
+
+    // Wait for user input from dashboard (set_direction command)
+    global.clearCalibrationInput();
+    while (!global.getCalibrationInputAvailable())
     {
-        // Get the next magnet to fire
-        int magnet_id = calibration.startCalibrationStep();
-
-        if (magnet_id < 0)
-        {
-            printf("Calibration complete!\n");
-            break;
-        }
-
-        // TODO: Apply magnet current to fire the selected magnet
-        // For now, just a placeholder
-        printf("Firing magnet %d for calibration\n", magnet_id);
-
-        // Wait for user input from dashboard (set_direction command)
-        global.clearCalibrationInput();
-        while (!global.getCalibrationInputAvailable())
-        {
-            vTaskDelay(pdMS_TO_TICKS(50)); // Wait for input
-        }
-
-        // Get user input and current orientation
-        Vector3 user_input = global.getCalibrationInput();
-        global.clearCalibrationInput();
-
-        Orientation current_q = global.getOrientation();
-        Quaternion q(current_q.w, current_q.x, current_q.y, current_q.z);
-
-        // Complete this calibration step
-        calibration.completeCalibrationStep(user_input.x, user_input.y, q);
-
-        printf("Calibration step %d/%d complete\n",
-               calibration.getCurrentStep(), calibration.getMaxSteps());
+        vTaskDelay(pdMS_TO_TICKS(50)); // Wait for input
     }
 
-    printf("Calibration sequence finished, waiting for start command...\n");
+    // Get user input and current orientation
+    Vector3 user_input = global.getCalibrationInput();
+    global.clearCalibrationInput();
+
+    Orientation current_q = global.getOrientation();
+    Quaternion q(current_q.w, current_q.x, current_q.y, current_q.z);
+
+    // Complete this calibration step
+    calibration.completeCalibrationStep(user_input.x, user_input.y, q);
+
+    printf("Calibration finished, waiting for start command...\n");
 
     // Wait for start command to move to running state
     while (!global.getStartRequested())
@@ -302,8 +289,8 @@ State *TestingState::execute()
 {
     // Run scripts through it. No state switching ever.
 
-    test_imu();
-    // test_1();
+    // test_imu();
+    test_1();
     // test_stress_20ms();
     // test_4();
     // test_5();
