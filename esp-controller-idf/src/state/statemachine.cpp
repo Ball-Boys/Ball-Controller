@@ -5,6 +5,7 @@
 #include <esp_timer.h>
 #include <comms/wifi_client.h>
 #include <scripts/bench_test.h>
+#include <utils/utils.h>
 
 #define SERIAL_BAUD_RATE 115200
 #define I2C_CLOCK_HZ 1000000
@@ -130,7 +131,7 @@ void core1LoopTask(void* param) {
             break; // Exit the loop to end the task
         }
         // check IMU and get value
-        IMUData imu_data = shtp_service();
+        IMUData imu_data = readIMU();
 
         for (const auto& angular_velocity : imu_data.angular_velocity) {
             instance.setAngularVelocity(angular_velocity);
