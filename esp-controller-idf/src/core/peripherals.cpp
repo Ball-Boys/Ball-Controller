@@ -364,7 +364,7 @@ static esp_err_t bno08x_send_packet(uint8_t channel, const uint8_t* data, size_t
 static uint8_t s_assembly_buffer[MAX_ASSEMBLY_LEN];
 static uint16_t s_assembly_cursor = 0;
 
-void parse_rotation_vector(const uint8_t* data) {
+Orientation parse_rotation_vector(const uint8_t* data) {
     // RV Q-point = 14
     auto q_to_f = [](int16_t raw, int q) { return static_cast<float>(raw) * std::pow(2.0f, -q); };
 
@@ -377,10 +377,9 @@ void parse_rotation_vector(const uint8_t* data) {
     float j = q_to_f(j_raw, 14);
     float k = q_to_f(k_raw, 14);
     float r = q_to_f(r_raw, 14);
+    return Orientation(r, i, j, k);
 
-    GlobalState& instance = GlobalState::instance();
 
-    instance.setOrientation(Orientation(r, i, j, k));
 
 }
 
@@ -388,7 +387,7 @@ void parse_accelerometer(const uint8_t* data) {
     // do nothing
 }
 
-void parse_gyroscope(const uint8_t* data) {
+AngularVelocity parse_gyroscope(const uint8_t* data) {
     // Gyro Q-point = 8
     auto q_to_f = [](int16_t raw, int q) { return static_cast<float>(raw) * std::pow(2.0f, -q); };
 
@@ -400,14 +399,15 @@ void parse_gyroscope(const uint8_t* data) {
     float y = q_to_f(y_raw, 8);
     float z = q_to_f(z_raw, 8);
 
-    GlobalState& instance = GlobalState::instance();
 
-    instance.setAngularVelocity(AngularVelocity(x, y, z));
+    return AngularVelocity(x, y, z);
+
 
 }
 
-static void rxAssemble(const uint8_t* packet, uint16_t len) {
-    if (len < SHTP_HEADER_SIZE) return;
+static IMUData rxAssemble(const uint8_t* packet, uint16_t len) {
+    IMUData empty_data = {};
+    if (len < SHTP_HEADER_SIZE) return empty_data;
 
     // Byte 0-1: Length (LSB first)
     // IMPORTANT: Just take the 15 bits. Ignore the 16th bit for now.
@@ -426,20 +426,23 @@ static void rxAssemble(const uint8_t* packet, uint16_t len) {
 
     if (channel == 3) {
         uint16_t i = 0;
-        process_channel_3(&payload[i], payload_len - i);
+        return process_channel_3(&payload[i], payload_len - i);
         
     } else if (channel == 0) {
         // This is the advertisement (276 bytes). 
         // You can ignore this for now unless you want to parse Q-points dynamically.
         ESP_LOGI(TAG, "Ch 0: Advertisement received (len %d)", packet_len);
     }
+
+    return empty_data;
 }
 
 void imu_purge_buffer() {
     // nothing as of right now
 }
 
-void process_channel_3(const uint8_t* payload, uint16_t payload_len) {
+IMUData process_channel_3(const uint8_t* payload, uint16_t payload_len) {
+    IMUData imu_data;
     uint16_t i = 0;
 
     while (i < payload_len) {
@@ -457,17 +460,17 @@ void process_channel_3(const uint8_t* payload, uint16_t payload_len) {
                 break;
 
             case 0x05: // Rotation Vector
-                parse_rotation_vector(&payload[i]);
+
+                imu_data.orientation.push_back(parse_rotation_vector(&payload[i]));
                 i += 14; 
                 break;
 
             case 0x01: // Accelerometer
-                parse_accelerometer(&payload[i]);
                 i += 10;
-            break;
+                break;
 
             case 0x02: // Gyroscope
-                parse_gyroscope(&payload[i]); // Gyro has same data format as Accel, just different scaling
+                imu_data.angular_velocity.push_back(parse_gyroscope(&payload[i])); // Gyro has same data format as Accel, just different scaling
                 i += 10;
             break;
 
@@ -479,32 +482,35 @@ void process_channel_3(const uint8_t* payload, uint16_t payload_len) {
                 // CRITICAL: If we hit an unknown ID, we don't know the length.
                 // We must abort parsing this packet to avoid reading garbage.
                 ESP_LOGW("IMU", "Unknown Report ID: 0x%02x at index %d", report_id, i);
-                return; 
+                return imu_data; 
         }
     }
+    return imu_data;
 }
 
-void shtp_service() {
+IMUData shtp_service() {
     uint8_t header[SHTP_HEADER_SIZE];
     static uint8_t packet_scratchpad[MAX_PACKET_LEN];
+    IMUData empty_data = {};
 
     // 1. Read the 4-byte header to see how much data is waiting
     esp_err_t err = i2c_master_receive(s_imu_device, header, SHTP_HEADER_SIZE, 50);
-    if (err != ESP_OK) return;
+    if (err != ESP_OK) return empty_data;
 
     // Mask the length (ignore Bit 15 here)
     uint16_t packet_len = (header[0] | (header[1] << 8)) & 0x7FFF;
 
     if (packet_len < SHTP_HEADER_SIZE || packet_len > MAX_PACKET_LEN) {
-        return;
+        return empty_data;
     }
 
     // 2. Perform a full read of the entire packet (header + payload)
     // The FSM30X requires the full length to be read to clear its internal buffer.
     err = i2c_master_receive(s_imu_device, packet_scratchpad, packet_len, 100);
     if (err == ESP_OK) {
-        rxAssemble(packet_scratchpad, packet_len);
+        return rxAssemble(packet_scratchpad, packet_len);
     }
+    return empty_data;
 }
 
 
