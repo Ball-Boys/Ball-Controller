@@ -186,9 +186,11 @@ State* RunningState::execute() {
 
 State* TestingState::execute() {
     // Run scripts through it. No state switching ever.
+        init_peripherals(I2C_CLOCK_HZ, SERIAL_BAUD_RATE); // Initialize peripherals (Wi-Fi, IMU, etc.)
     
             // test_imu();
-            //test_1();
+            // test_0();
+            // test_1();
             //test_stress_20ms();
             //test_4();
             //test_5();

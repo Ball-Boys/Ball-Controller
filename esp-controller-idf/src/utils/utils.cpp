@@ -65,28 +65,21 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
 
 
 
-    // serial_printf("Setting PWM outputs for magnet IDs: ");
-    // for (size_t i = 0; i < count; ++i) {
-    //     serial_printf("%d ", magnetIds[i]);
-    // }
-    // serial_print("\n");
-
-    // serial_printf("With values: ");
-    // for (size_t i = 0; i < count; ++i) {
-    //     serial_printf("%d ", values[i]);
-    // }
-    // serial_print("\n");
-
-
     for (size_t i = 0; i < count; ++i) {
         int magnetId = magnetIds[i];
         int value = values[i];
         PWMAddress pwmAddress = state.getPWMAddress(magnetId);
-        pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, value);
+        float duty_cycle_256 = value / 16.0f;
+        pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, static_cast<int>(duty_cycle_256));
         // printf("Set PWM for magnet %d (I2C addr: 0x%02X, channel: %d) to value %d\n", magnetId, pwmAddress.driver_i2c_address, pwmAddress.channel, value);
 
     }
+}
 
+void zero_pwm_outputs() {
+    std::vector<int> magnetIds = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    std::vector<int> zero_values(magnetIds.size(), 0);
+    setPWMOutputs(magnetIds, zero_values);
 }
 
 

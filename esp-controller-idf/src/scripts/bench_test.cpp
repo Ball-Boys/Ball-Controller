@@ -77,6 +77,7 @@ void test_adc() {
         int i = 1;
         for (const float val : value) {
             printf("%d: %.3f A ", i, val);
+            
             i++;
         }
         printf("\n");
@@ -88,7 +89,7 @@ void test_adc() {
 
 
 void test_0() {
-    serial_print("Starting test 0: Basic control loop timing\n");
+    printf("Starting test 0: Basic control loop timing\n");
 
     GlobalState& instance = GlobalState::instance();
 
@@ -97,10 +98,12 @@ void test_0() {
     float w = 2.0f * 3.14159f * 1000;  // 2*pi for sine wave, freq controlled by delay
     while (true) {
         // set pwm to current value of sin wave (0-255 range)
-        int pwm_value = static_cast<int>((std::sin(num_deltas * delta * w) + 1.0f) * 2048.5f);
-        // int pwm_value = 2555;
+        // int pwm_value = static_cast<int>((std::sin(num_deltas * delta * w) + 1.0f) * 2048.5f);
+        int pwm_value = 400;
         setPWMOutputs({1}, {pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value, pwm_value});
-        printf("Setting value: %d (sin arg: %f)\n", pwm_value, num_deltas * delta * w);
+        setPWMOutputs({10}, {1400});
+        setPWMOutputs({9}, {2000});
+        
         vTaskDelay(pdMS_TO_TICKS(4));  // Delay ~0.3ms via FreeRTOS
         ++num_deltas; 
     }
@@ -114,25 +117,32 @@ void test_1() {
 
     GlobalState& instance = GlobalState::instance();
 
+    for (int magnetId = 1; magnetId <= 20; ++magnetId) {
+        PWMAddress add = instance.getPWMAddress(magnetId); // Pre-cache addresses to avoid timing issues in the loop
+        pca9685_set_pwm(add.driver_i2c_address, add.channel, 0); // Ensure all magnets start at 0
+    }
+
+
     float loop_iterations = 1.0f / instance.fastLoopTime; // Set loop iterations based on fast loop time
 
     int loops = 0;
     // loop though index 0 through 19 magents
     printf("Activating magnet 1 at mid power for 2 seconds\n");
-
-    instance.setControl(ControlOutputs(1, 2)); // Set magnet to mid power
+    while (true) {
+    instance.setControl(ControlOutputs(1, 5)); // Set magnet to mid power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 activation\n");
     instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 deactivation\n");
 
-    instance.setControl(ControlOutputs(1, 4)); // Set magnet to mid power
+    instance.setControl(ControlOutputs(1, 5)); // Set magnet to mid power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 activation\n");
     instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 deactivation\n");
+    }
 
 }
 
@@ -376,7 +386,7 @@ void test_that_wiggle() {
     // xTaskCreate(udp_sender_task, "core1_loop", 8192, NULL, 5, NULL);
 
     while (true) {
-        instance.setControl(ControlOutputs(9, 3)); // Set magnet to mid power
+        instance.setControl(ControlOutputs(9, 7)); // Set magnet to mid power
         run_control_loop_for_seconds(instance, 2.0f); // Run for 20 seconds
 
         instance.setControl(ControlOutputs(9, 0)); // Set magnet to mid power
