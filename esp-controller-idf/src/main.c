@@ -34,9 +34,15 @@ void app_main() {
 
     // wifi testing 
     
+    
 
+    // 3. Start the Data Task
+    // xTaskCreatePinnedToCore(bc_bench_test_imu, "udp_sender", 32768, NULL, 5, NULL, 1);
 
-
+    // while (true) {
+    //     vTaskDelay(pdMS_TO_TICKS(1000)); // Main loop sleeps, task runs independently
+    // }
+    bc_run_state_machine_testing();
 
 
 }

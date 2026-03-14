@@ -356,3 +356,25 @@ void test_5() {
 }
 
 
+// ...existing code...
+
+void test_imu() {
+    printf("\nStarting IMU test\n");
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+        // Poll IMU once per cycle (10 ms)
+        readIMU(); // Ensure we process incoming IMU data
+
+        GlobalState& instance = GlobalState::instance();
+        Orientation orientation = instance.getOrientation();
+        AngularVelocity angularVelocity = instance.getAngularVelocity();
+        printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", instance.getOrientation().w, instance.getOrientation().x, instance.getOrientation().y, instance.getOrientation().z);
+        // printf("Angular Velocity: x=%.3f y=%.3f z=%.3f\n", instance.getAngularVelocity().x, instance.getAngularVelocity().y, instance.getAngularVelocity().z);
+
+        
+    }
+}
+
+// ...existing code...
+

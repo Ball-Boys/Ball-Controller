@@ -28,6 +28,10 @@ float convert_adc_value_to_current(u_int16_t adc_value) {
     return (adc_value / max_adc_value) * max_voltage / 50 / 0.005;
 }
 
+void readIMU() {
+    shtp_service();
+}
+
 
 std::vector<float> retreveCurrentValueFromADC(std::vector<int> mag_ids) {
     GlobalState& state = GlobalState::instance();

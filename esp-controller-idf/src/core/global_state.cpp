@@ -17,7 +17,9 @@ GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, P
     : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
       idealDirection(0.0f, 0.0f, 0.0f) {
-    orientationHistory.reserve(1000);
+        orientationHistory.reserve(kMaxOrientationHistorySize);
+        angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
+        killedMutex = xSemaphoreCreateMutex();
 }
 
 // ============= Orientation methods =============
@@ -25,13 +27,16 @@ GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, P
 Orientation GlobalState::getOrientation() const {
     // Gets the latest orientation from the list
     if (orientationHistory.empty()) {
-        throw std::runtime_error("No orientation data available");
+        return Orientation(1.0f, 0.0f, 0.0f, 0.0f); // Default orientation if none available
     }
     return orientationHistory.back();
 }
 
 void GlobalState::setOrientation(const Orientation& value) {
     orientationHistory.push_back(value);
+    if (orientationHistory.size() > kMaxOrientationHistorySize) {
+        orientationHistory.erase(orientationHistory.begin());
+    }
 }
 
 void GlobalState::resetOrientation() {
@@ -61,13 +66,16 @@ const std::vector<Orientation>& GlobalState::getOrientationHistory(int last_n) c
 AngularVelocity GlobalState::getAngularVelocity() const {
     // Gets the latest angular velocity from the list
     if (angularVelocityHistory.empty()) {
-        throw std::runtime_error("No angular velocity data available");
+        return AngularVelocity(0.0f, 0.0f, 0.0f); // Default angular velocity if none available
     }
     return angularVelocityHistory.back();
 }
 
 void GlobalState::setAngularVelocity(const AngularVelocity& value) {
     angularVelocityHistory.push_back(value);
+    if (angularVelocityHistory.size() > kMaxAngularVelocityHistorySize) {
+        angularVelocityHistory.erase(angularVelocityHistory.begin());
+    }
 }
 
 void GlobalState::resetAngularVelocity() {
@@ -324,10 +332,15 @@ void GlobalState::setIdealDirection(const Vector3& value) {
     idealDirection = value;
 }
 
-void GlobalState::kill() {
-    killed = true;
+void GlobalState::set_kill(bool value) {
+    xSemaphoreTake(this->killedMutex, portMAX_DELAY);
+    this->killed = value;
+    xSemaphoreGive(this->killedMutex);
 }
 
 bool GlobalState::isKilled() const {
-    return killed;
+    xSemaphoreTake(this->killedMutex, portMAX_DELAY);
+    bool isKilled = this->killed;
+    xSemaphoreGive(this->killedMutex);
+    return isKilled;
 }

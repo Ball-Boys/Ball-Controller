@@ -82,6 +82,8 @@ class MagnetInfo {
         
     public:
         static constexpr size_t kMaxCurrentHistorySize = 100;  // Rolling buffer max size
+        static constexpr size_t kMaxOrientationHistorySize = 500;  // Rolling buffer max size
+        static constexpr size_t kMaxAngularVelocityHistorySize = 500;  // Rolling buffer max size
         
         const int id;
         const Vector3 position;
@@ -249,6 +251,8 @@ struct MagnetList {
 class GlobalState {
 public:
     static GlobalState& instance();
+    static constexpr size_t kMaxOrientationHistorySize = 500;
+    static constexpr size_t kMaxAngularVelocityHistorySize = 500;
 
     float fastLoopTime = 0.000650f; // 650 microseconds
     float slowLoopTime = 0.01f; // 10 milliseconds
@@ -299,7 +303,7 @@ public:
     Vector3 getIdealDirection() const;
     void setIdealDirection(const Vector3& value);
 
-    void kill();
+    void set_kill(bool value);
     bool isKilled() const;
 
 private:
@@ -318,6 +322,7 @@ private:
     // Timing instrumentation
     
 
+    mutable SemaphoreHandle_t killedMutex;
     bool killed = false;
 };
 
