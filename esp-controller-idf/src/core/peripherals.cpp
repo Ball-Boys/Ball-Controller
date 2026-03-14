@@ -204,6 +204,11 @@ void init_pwm_driver() {
         return;
     }
 
+    // Set GPIO 13 to LOW
+    gpio_reset_pin(GPIO_NUM_13);
+    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_13, 1);
+
     i2c_master_bus_config_t bus_cfg = {};
     bus_cfg.i2c_port = I2C_NUM_0;
     bus_cfg.sda_io_num = I2C_SDA_PIN;
@@ -217,9 +222,9 @@ void init_pwm_driver() {
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &s_i2c_bus));
     s_i2c_initialized = true;
 
-    // Set GPIO 13 to LOW
-    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_13, 0);
+    gpio_set_level(GPIO_NUM_13, 0); // Set GPIO 13 LOW after initializing I2C bus (if needed by the hardware)
+
+    
 
     // Initialize both PCA9685 devices (0x40 and 0x41)
     const uint8_t addresses[] = {0x40, 0x41};
@@ -235,32 +240,34 @@ void init_pwm_driver() {
         if (err == ESP_OK && handle != nullptr) {
 
             // Calculation: (25MHz / (4096 * 50Hz)) - 1 = 121 (0x79)
-            uint8_t prescale_val = 0x02;
-            uint8_t sleep_mode   = 0x31; // bit5=1 (AI), bit4=1 (Sleep), bit0=1 (ALLCALL)
-            uint8_t wake_mode    = 0x21; // bit5=1 (AI), bit4=0 (Wake),  bit0=1 (ALLCALL)
-            uint8_t restart_mode = 0xA1; // bit7=1 (Restart), bit5=1 (AI), bit0=1 (ALLCALL)
             uint8_t PCA9685_MODE1 = 0x00;
             uint8_t PCA9685_PRESCALE = 0xFE;
+            uint8_t restart_mode = 0b00000000;
+ 
 
-            // 1. Put to Sleep (Required to change frequency)
-            uint8_t cmd_sleep[] = {PCA9685_MODE1, sleep_mode};
-            i2c_master_transmit(handle, cmd_sleep, 2, 10);
-
-            // 2. Set the Frequency
-            uint8_t cmd_freq[] = {PCA9685_PRESCALE, prescale_val};
-            i2c_master_transmit(handle, cmd_freq, 2, 10);
-
-            // 3. Wake up
-            uint8_t cmd_wake[] = {PCA9685_MODE1, wake_mode};
+            // 1. Wake up the device (Set MODE1)
+            uint8_t cmd_wake[] = {0x00, 0x00}; 
             i2c_master_transmit(handle, cmd_wake, 2, 10);
 
-            // 4. Critical: Wait for the internal oscillator to stabilize
-            // Using a 1ms delay to be safe (datasheet asks for 500us)
-            vTaskDelay(pdMS_TO_TICKS(5)); 
+            uint8_t cmd_wake2[] = {0x01, 0x14};
+            i2c_master_transmit(handle, cmd_wake2, 2, 10);
+
+
+            // 2. Set LEDOUT registers to enable PWM (0xAA sets all 4 LEDs in a reg to PWM mode)
+            // We need to do this for LEDOUT0, 1, 2, and 3 (Registers 0x14 - 0x17)
+            for (uint8_t reg = 0x14; reg <= 0x17; reg++) {
+                uint8_t cmd_ledout[] = {reg, 0xAA}; // 0xAA = 10101010 in binary
+                i2c_master_transmit(handle, cmd_ledout, 2, 10);
+            }
 
             // 5. Finalize Restart
             uint8_t cmd_restart[] = {PCA9685_MODE1, restart_mode};
             i2c_master_transmit(handle, cmd_restart, 2, 10);
+
+            for (int channel = 0; channel < 16; channel++) {
+                pca9685_set_pwm(addr, channel, 0); // Start with all channels at 0
+                vTaskDelay(pdMS_TO_TICKS(1)); // Short delay between channel setups
+            }
 
             
             
@@ -292,7 +299,8 @@ static i2c_master_dev_handle_t get_pwm_device(int driver_i2c_address) {
     return nullptr;
 }
 
-void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
+void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
+    printf("Setting PWM on I2C addr 0x%02X, channel %d to value %d\n", driver_i2c_address, channel, value_0_255);
     if (!s_i2c_initialized) {
         init_pwm_driver();
     }
@@ -301,10 +309,10 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
         return;
     }
 
-    if (value_0_4095 < 0) {
-        value_0_4095 = 0;
-    } else if (value_0_4095 > 4095) {
-        value_0_4095 = 4095;
+    if (value_0_255 < 0) {
+        value_0_255 = 0;
+    } else if (value_0_255 > 255) {
+        value_0_255 = 255;
     }
 
     const i2c_master_dev_handle_t dev = get_pwm_device(driver_i2c_address);
@@ -313,21 +321,17 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_4095) {
         return;
     }
     
-    const int on_count = 0;
-    const int off_count = value_0_4095;
 
-    const uint8_t reg = static_cast<uint8_t>(0x06 + 4 * channel); // LED0_ON_L
 
-    uint8_t data[5] = {
+    const uint8_t reg = static_cast<uint8_t>(0x02 + channel); 
+
+    uint8_t data[2] = {
         reg,
-        static_cast<uint8_t>(on_count & 0xFF),
-        static_cast<uint8_t>((on_count >> 8) & 0x0F),
-        static_cast<uint8_t>(off_count & 0xFF),
-        static_cast<uint8_t>((off_count >> 8) & 0x0F)
+        static_cast<uint8_t>(value_0_255) // Scale 0-255 to 0-4095 by multiplying by 16,
     };
 
     i2c_master_transmit(dev, data, sizeof(data), 10);
-}
+} 
 
 
 // Helper function to send SHTP packets to BNO08x
@@ -695,12 +699,12 @@ void init_comms() {
 
 
 void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
-    log_stack_watermark("init_peripherals:entry");
+    init_pwm_driver();
     for (gpio_num_t pin : ADC_CHANNEL_SELECT) {
         init_adc(adc_clock_speed_hz, pin);
     }
 
-    init_pwm_driver();
+    
     
     init_comms();
 
