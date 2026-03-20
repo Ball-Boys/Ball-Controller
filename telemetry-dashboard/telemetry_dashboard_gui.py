@@ -14,8 +14,9 @@ class DashboardGUI:
         self.dashboard = BallControllerDashboard(esp_ip="192.168.4.1")
         self.dashboard.start()
         
-        # System state tracking
-        self.system_state = "Standby"
+        # System state tracking (driven by telemetry, not button presses)
+        self.system_state = "Disconnected"
+        self._prev_telemetry_text = ""
         
         # Joystick state
         self.joystick_x = 0.0
@@ -95,12 +96,16 @@ class DashboardGUI:
                                      font=("Arial", 12, "bold"), bg="#2a2a2a", fg="#00ff00")
         status_frame.pack(fill=tk.X, pady=10)
         
-        self.status_label = tk.Label(status_frame, text="Connected to ESP32 at 192.168.4.1", 
-                                     font=("Arial", 10), bg="#2a2a2a", fg="#00ff00", justify=tk.LEFT)
+        self.connection_label = tk.Label(status_frame, text="\u25cf Disconnected",
+                                        font=("Arial", 11, "bold"), bg="#2a2a2a", fg="#ff4444", justify=tk.LEFT)
+        self.connection_label.pack(padx=10, pady=5)
+
+        self.status_label = tk.Label(status_frame, text="Waiting for ESP32 telemetry...", 
+                                     font=("Arial", 10), bg="#2a2a2a", fg="#888888", justify=tk.LEFT)
         self.status_label.pack(padx=10, pady=5)
 
-        self.state_label = tk.Label(status_frame, text="State: Standby",
-                                    font=("Arial", 10, "bold"), bg="#2a2a2a", fg="#00ffff", justify=tk.LEFT)
+        self.state_label = tk.Label(status_frame, text="State: Disconnected",
+                                    font=("Arial", 10, "bold"), bg="#2a2a2a", fg="#888888", justify=tk.LEFT)
         self.state_label.pack(padx=10, pady=5)
         
         # Control buttons frame
@@ -137,19 +142,26 @@ class DashboardGUI:
         self.emergency_btn.pack(padx=10, pady=10)
         
         # Magnet currents frame
-        magnet_frame = tk.LabelFrame(right_frame, text="Magnet Currents", 
+        magnet_frame = tk.LabelFrame(right_frame, text="Magnets", 
                                       font=("Arial", 12, "bold"), bg="#2a2a2a", fg="#00ff00")
         magnet_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
-        self.magnet_list = ttk.Treeview(magnet_frame, columns=("current", "setpoint"), show="headings", height=10)
+        self.magnet_list = ttk.Treeview(magnet_frame, columns=("magnet", "current", "setpoint"),
+                                         show="headings", height=10)
+        self.magnet_list.heading("magnet", text="#")
         self.magnet_list.heading("current", text="Current")
         self.magnet_list.heading("setpoint", text="Setpoint")
-        self.magnet_list.column("current", width=90, anchor="center")
-        self.magnet_list.column("setpoint", width=90, anchor="center")
-        self.magnet_list.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        self.magnet_list.column("magnet", width=40, anchor="center")
+        self.magnet_list.column("current", width=80, anchor="center")
+        self.magnet_list.column("setpoint", width=80, anchor="center")
+
+        mag_scroll = ttk.Scrollbar(magnet_frame, orient="vertical", command=self.magnet_list.yview)
+        self.magnet_list.configure(yscrollcommand=mag_scroll.set)
+        self.magnet_list.pack(side=tk.LEFT, padx=(10, 0), pady=10, fill=tk.BOTH, expand=True)
+        mag_scroll.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10), pady=10)
 
         for i in range(20):
-            self.magnet_list.insert("", "end", iid=f"mag{i}", values=("0.00", "0.00"))
+            self.magnet_list.insert("", "end", iid=f"mag{i}", values=(i + 1, "0.00", "0.00"))
 
         # Telemetry frame
         telemetry_frame = tk.LabelFrame(right_frame, text="Telemetry", 
@@ -314,22 +326,33 @@ class DashboardGUI:
             self.draw_joystick()
             self.joystick_value_label.config(text="X: 0.00  Y: 0.00")
     
+    def _check_connected(self, action_name: str) -> bool:
+        """Return True if ESP32 is connected, else show warning."""
+        if not self.dashboard.is_connected:
+            messagebox.showwarning("Not Connected",
+                                   f"Cannot {action_name}: no telemetry from ESP32.\n"
+                                   "Make sure you are connected to the ESP32 WiFi network.")
+            return False
+        return True
+
     def on_calibrate(self):
         """Calibrate button pressed"""
-        self.system_state = "Calibration"
-        self.state_label.config(text="State: Calibration")
+        if not self._check_connected("calibrate"):
+            return
         self.dashboard.calibrate()
-        self.update_status("Calibration initiated...")
+        self.update_status("Calibration command sent")
 
     def on_start(self):
         """Start button pressed"""
-        self.system_state = "Running"
-        self.state_label.config(text="State: Running")
+        if not self._check_connected("start"):
+            return
         self.dashboard.start_running()
-        self.update_status("System started")
+        self.update_status("Start command sent")
 
     def on_send_direction(self):
         """Send current joystick direction"""
+        if not self._check_connected("send direction"):
+            return
         # Normalize to unit vector (or zero if center)
         magnitude = math.sqrt(self.joystick_x**2 + self.joystick_y**2)
         
@@ -353,13 +376,11 @@ class DashboardGUI:
             self.ball_velocity[1] = y * 0.5
 
     def on_emergency_stop(self):
-        """Emergency stop button pressed"""
-        self.system_state = "Standby"
-        self.state_label.config(text="State: Standby")
+        """Emergency stop button pressed - always allowed even if disconnected"""
         self.dashboard.emergency_stop()
         self.ball_velocity = [0.0, 0.0]
         self.ball_position = [0.0, 0.0]
-        self.update_status("EMERGENCY STOP!")
+        self.update_status("EMERGENCY STOP sent")
 
     def update_status(self, message):
         """Update status label"""
@@ -367,6 +388,17 @@ class DashboardGUI:
     
     def update_telemetry(self):
         """Update telemetry display"""
+
+        # --- Connection indicator ---
+        connected = self.dashboard.is_connected
+        if connected:
+            self.connection_label.config(text="\u25cf Connected", fg="#00ff00")
+        else:
+            self.connection_label.config(text="\u25cf Disconnected", fg="#ff4444")
+            if self.system_state != "Disconnected":
+                self.system_state = "Disconnected"
+                self.state_label.config(text="State: Disconnected", fg="#888888")
+                self.status_label.config(text="Waiting for ESP32 telemetry...")
 
         # Animate ball physics (relative to joystick + calibration offset)
         if self.system_state == "Running":
@@ -380,10 +412,10 @@ class DashboardGUI:
         self.draw_ball_model()
         self.ball_info_label.config(text=f"Position: ({self.ball_position[0]:.2f}, {self.ball_position[1]:.2f}) ")
 
-        if self.dashboard.latest_telemetry:
+        if self.dashboard.latest_telemetry and connected:
             telem = self.dashboard.latest_telemetry
 
-            # Update state from ESP telemetry
+            # Update state from ESP telemetry (authoritative source)
             state_map = {
                 0: "Connection",
                 1: "Standby",
@@ -419,22 +451,28 @@ class DashboardGUI:
 
             # Telemetry basic summaries
             avg_current = sum(self.magnet_currents) / len(self.magnet_currents)
-            text_content = f"""
-State: {self.system_state}\n
-Timestamp: {telem.timestamp} ms\n
-Magnet avg current: {avg_current:.2f}\n
-Orientation (wxyz): {w:.3f}, {x:.3f}, {y:.3f}, {z:.3f}\n
-Euler (deg): roll={roll:.1f}, pitch={pitch:.1f}, yaw={yaw:.1f}\n
-Angular vel (rad/s): x={ax:.2f}, y={ay:.2f}, z={az:.2f}\n
-Last joystick: X={self.joystick_x:.2f}, Y={self.joystick_y:.2f}\n
-Calib offset: {self.calibration_offset_deg:.1f} deg\n"""
+            text_content = (
+                f"State: {self.system_state}\n"
+                f"Timestamp: {telem.timestamp} ms\n"
+                f"Magnet avg current: {avg_current:.2f}\n"
+                f"Orientation (wxyz): {w:.3f}, {x:.3f}, {y:.3f}, {z:.3f}\n"
+                f"Euler (deg): roll={roll:.1f}, pitch={pitch:.1f}, yaw={yaw:.1f}\n"
+                f"Angular vel (rad/s): x={ax:.2f}, y={ay:.2f}, z={az:.2f}\n"
+                f"Last joystick: X={self.joystick_x:.2f}, Y={self.joystick_y:.2f}\n"
+                f"Calib offset: {self.calibration_offset_deg:.1f} deg\n"
+            )
 
-            self.telemetry_text.config(state=tk.NORMAL)
-            self.telemetry_text.delete("1.0", tk.END)
-            self.telemetry_text.insert("1.0", text_content)
-            self.telemetry_text.config(state=tk.DISABLED)
+            # Only update the text widget if content actually changed,
+            # to avoid resetting the scroll position on every tick.
+            if text_content != self._prev_telemetry_text:
+                self._prev_telemetry_text = text_content
+                self.telemetry_text.config(state=tk.NORMAL)
+                self.telemetry_text.delete("1.0", tk.END)
+                self.telemetry_text.insert("1.0", text_content)
+                self.telemetry_text.config(state=tk.DISABLED)
 
-        self.state_label.config(text=f"State: {self.system_state}")
+        self.state_label.config(text=f"State: {self.system_state}",
+                                fg="#00ffff" if connected else "#888888")
 
         # Schedule next update
         self.root.after(100, self.update_telemetry)
