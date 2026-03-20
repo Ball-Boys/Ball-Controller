@@ -306,6 +306,8 @@ public:
     void set_kill(bool value);
     bool isKilled() const;
 
+    
+
 private:
     GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config);
     GlobalState(const GlobalState&) = delete;
