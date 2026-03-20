@@ -17,9 +17,35 @@ void extract_data_from_globals(ball_data_packet* out_packet) {
         ).count()
     );
 
-
     GlobalState& global_state = GlobalState::instance();
 
+    // System state (0..4)
+    out_packet->system_state = static_cast<uint8_t>(global_state.getSystemState());
+
+    // Orientation quaternion
+    Orientation current_orientation = global_state.getOrientation();
+    out_packet->orientation_wxyz[0] = current_orientation.w;
+    out_packet->orientation_wxyz[1] = current_orientation.x;
+    out_packet->orientation_wxyz[2] = current_orientation.y;
+    out_packet->orientation_wxyz[3] = current_orientation.z;
+
+    // Angular velocity
+    AngularVelocity current_ang_vel = global_state.getAngularVelocity();
+    out_packet->angular_velocity_xyz[0] = current_ang_vel.x;
+    out_packet->angular_velocity_xyz[1] = current_ang_vel.y;
+    out_packet->angular_velocity_xyz[2] = current_ang_vel.z;
+
+    // Magnet setpoints from latest control outputs
+    auto latest_controls = global_state.getLatestControl();
+    for (int i = 0; i < 20; i++) {
+        if (i < static_cast<int>(latest_controls.size())) {
+            out_packet->magnet_setpoints[i] = latest_controls[i].current_value;
+        } else {
+            out_packet->magnet_setpoints[i] = 0.0f;
+        }
+    }
+
+    // Current measured values
     for (int magnet_index = 0; magnet_index < 20; magnet_index++) {
         const int magnet_id = magnet_index + 1;
         const std::vector<CurrentInfo>& current_values = global_state.getCurrentValues(magnet_id);
@@ -36,6 +62,6 @@ void extract_data_from_globals(ball_data_packet* out_packet) {
             );
         }
     }
-    
 }
+
 
