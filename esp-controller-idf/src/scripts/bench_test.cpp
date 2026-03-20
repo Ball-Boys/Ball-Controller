@@ -76,6 +76,7 @@ void test_adc() {
         int i = 1;
         for (const float val : value) {
             printf("%d: %.3f A ", i, val);
+            
             i++;
         }
         printf("\n");
@@ -87,7 +88,7 @@ void test_adc() {
 
 
 void test_0() {
-    serial_print("Starting test 0: Basic control loop timing\n");
+    printf("Starting test 0: Basic control loop timing\n");
 
     GlobalState& instance = GlobalState::instance();
 
@@ -113,25 +114,32 @@ void test_1() {
 
     GlobalState& instance = GlobalState::instance();
 
+    for (int magnetId = 1; magnetId <= 20; ++magnetId) {
+        PWMAddress add = instance.getPWMAddress(magnetId); // Pre-cache addresses to avoid timing issues in the loop
+        pca9685_set_pwm(add.driver_i2c_address, add.channel, 0); // Ensure all magnets start at 0
+    }
+
+
     float loop_iterations = 1.0f / instance.fastLoopTime; // Set loop iterations based on fast loop time
 
     int loops = 0;
     // loop though index 0 through 19 magents
     printf("Activating magnet 1 at mid power for 2 seconds\n");
-
-    instance.setControl(ControlOutputs(1, 2)); // Set magnet to mid power
+    while (true) {
+    instance.setControl(ControlOutputs(1, 5)); // Set magnet to mid power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 activation\n");
     instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 deactivation\n");
 
-    instance.setControl(ControlOutputs(1, 4)); // Set magnet to mid power
+    instance.setControl(ControlOutputs(1, 5)); // Set magnet to mid power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 activation\n");
     instance.setControl(ControlOutputs(1, 0)); // Set magnet to 0 power
     run_control_loop_for_seconds(instance, 2.0f);
     printf("Completed magnet 1 deactivation\n");
+    }
 
 }
 

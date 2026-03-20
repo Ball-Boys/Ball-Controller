@@ -3,6 +3,8 @@
 #include <driver/spi_master.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
+#include <vector>
+#include "global_state.h"
 
 #define EXAMPLE_ESP_WIFI_SSID      "ESP32_Data_Link"
 #define EXAMPLE_ESP_WIFI_PASS      "password123"
@@ -52,8 +54,17 @@ void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255);
 
 
 
-void shtp_service();
-void parse_rotation_vector(const uint8_t* data);
-void parse_accelerometer(const uint8_t* data);
-void process_channel_3(const uint8_t* payload, uint16_t payload_len);
+
 void imu_purge_buffer();
+
+struct IMUData {
+    std::vector<AngularVelocity> angular_velocity;
+    std::vector<Orientation> orientation;
+};
+
+
+IMUData shtp_service();
+Orientation parse_rotation_vector(const uint8_t* data);
+void parse_accelerometer(const uint8_t* data);
+AngularVelocity parse_gyroscope(const uint8_t* data);
+IMUData process_channel_3(const uint8_t* payload, uint16_t payload_len);
