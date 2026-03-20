@@ -30,7 +30,7 @@ void app_main() {
     // while (true) {
     //     vTaskDelay(pdMS_TO_TICKS(1000)); // Main loop sleeps, task runs independently
     // }
-    bc_run_state_machine_testing();
+    bc_run_state_machine_connection();
 
 
 }

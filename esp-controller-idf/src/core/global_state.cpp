@@ -134,6 +134,8 @@ void GlobalState::setOrientationHistory(const std::vector<Orientation> &history)
 std::vector<ControlOutputs> GlobalState::getLatestControl() const
 {
     std::vector<ControlOutputs> latest;
+    // Reserve once to avoid repeated allocations in the fast control loop
+    latest.reserve(magnetList.magnets.size());
     for (const auto &pair : magnetList.magnets)
     {
         const auto &controlHistory = pair.second.getControlHistory();
@@ -142,17 +144,17 @@ std::vector<ControlOutputs> GlobalState::getLatestControl() const
             const auto &latestControl = controlHistory.back();
             if (latestControl.current_value != 0.0f)
             {
-                latest.push_back(latestControl);
+                latest.emplace_back(latestControl);
             }
             else
             {
-                latest.push_back(ControlOutputs::zero(pair.first));
+                latest.emplace_back(ControlOutputs::zero(pair.first));
             }
         }
         else
         {
             // If no control history, we can consider it as zero control
-            latest.push_back(ControlOutputs::zero(pair.first));
+            latest.emplace_back(ControlOutputs::zero(pair.first));
         }
     }
     return latest;
@@ -170,6 +172,10 @@ ControlOutputs GlobalState::getLatestControl(int magnetId) const
 
 void GlobalState::setControl(const ControlOutputs &value)
 {
+    // Treat magnetId == 0 as a no-op (represents "no magnet") to avoid exceptions
+    if (value.magnetId == 0) {
+        return;
+    }
     auto it = magnetList.magnets.find(value.magnetId);
     if (it == magnetList.magnets.end())
     {

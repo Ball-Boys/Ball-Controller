@@ -16,7 +16,7 @@ public:
 
     // Start the next calibration step - returns the magnet ID to fire
     // Returns -1 if calibration is complete
-    int startCalibrationStep();
+    int startCalibration();
 
     // Call this after dashboard sends joystick input to confirm magnet direction
     void completeCalibrationStep(float joy_x, float joy_y, const Quaternion &q);
