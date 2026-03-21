@@ -38,13 +38,13 @@ class BallControllerDashboard:
         while self.running:
             try:
                 data, addr = self.rx_sock.recvfrom(20000)
+                # Mark as connected whenever we receive any data from the ESP
+                self._last_telemetry_time = time.monotonic()
                 try:
                     packet = decode_ball_data_packet(data)
                     self.latest_telemetry = packet
-                    self._last_telemetry_time = time.monotonic()
-                    print(f"[TELEMETRY] Timestamp: {packet.timestamp}ms")
                 except ValueError as e:
-                    print(f"[ERROR] Decode failed: {e}")
+                    print(f"[ERROR] Decode failed ({len(data)} bytes): {e}")
             except socket.timeout:
                 pass
             except Exception as e:
