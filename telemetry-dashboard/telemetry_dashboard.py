@@ -5,6 +5,9 @@ import time
 from typing import Optional
 from packet_decoder import decode_ball_data_packet
 
+# Consider ESP disconnected if no telemetry received for this many seconds
+CONNECTION_TIMEOUT_S = 3.0
+
 class BallControllerDashboard:
     def __init__(self, esp_ip: str = "192.168.4.1"):
         """
@@ -28,18 +31,20 @@ class BallControllerDashboard:
         self.running = False
         self.latest_telemetry = None
         self.sequence_number = 0
+        self._last_telemetry_time: Optional[float] = None
         
     def _receive_telemetry_thread(self):
         """Background thread to receive telemetry data"""
         while self.running:
             try:
                 data, addr = self.rx_sock.recvfrom(20000)
+                # Mark as connected whenever we receive any data from the ESP
+                self._last_telemetry_time = time.monotonic()
                 try:
                     packet = decode_ball_data_packet(data)
                     self.latest_telemetry = packet
-                    print(f"[TELEMETRY] Timestamp: {packet.timestamp}ms")
                 except ValueError as e:
-                    print(f"[ERROR] Decode failed: {e}")
+                    print(f"[ERROR] Decode failed ({len(data)} bytes): {e}")
             except socket.timeout:
                 pass
             except Exception as e:
@@ -55,6 +60,13 @@ class BallControllerDashboard:
         print(f"Connected to ESP32 at {self.esp_ip}")
         return self
     
+    @property
+    def is_connected(self) -> bool:
+        """True if telemetry packets have been received recently."""
+        if self._last_telemetry_time is None:
+            return False
+        return (time.monotonic() - self._last_telemetry_time) < CONNECTION_TIMEOUT_S
+
     def stop(self):
         """Stop the dashboard"""
         self.running = False

@@ -6,6 +6,7 @@
 
 
 void extract_data_from_globals(ball_data_packet* out_packet) {
+
     if (out_packet == nullptr) {
         return;
     }
@@ -29,19 +30,23 @@ void extract_data_from_globals(ball_data_packet* out_packet) {
     out_packet->orientation_wxyz[2] = current_orientation.y;
     out_packet->orientation_wxyz[3] = current_orientation.z;
 
+    out_packet->orientation_wxyz[0] = 0.9239;
+    out_packet->orientation_wxyz[1] = 0.3827;
+    out_packet->orientation_wxyz[2] = 0;
+    out_packet->orientation_wxyz[3] = 0;
+
     // Angular velocity
     AngularVelocity current_ang_vel = global_state.getAngularVelocity();
     out_packet->angular_velocity_xyz[0] = current_ang_vel.x;
     out_packet->angular_velocity_xyz[1] = current_ang_vel.y;
     out_packet->angular_velocity_xyz[2] = current_ang_vel.z;
 
-    // Magnet setpoints from latest control outputs
+    // Magnet setpoints from latest control outputs (indexed by magnet ID)
     auto latest_controls = global_state.getLatestControl();
-    for (int i = 0; i < 20; i++) {
-        if (i < static_cast<int>(latest_controls.size())) {
-            out_packet->magnet_setpoints[i] = latest_controls[i].current_value;
-        } else {
-            out_packet->magnet_setpoints[i] = 0.0f;
+    for (const auto& ctrl : latest_controls) {
+        int idx = ctrl.magnetId - 1;  // magnet IDs are 1-based
+        if (idx >= 0 && idx < 20) {
+            out_packet->magnet_setpoints[idx] = ctrl.current_value;
         }
     }
 

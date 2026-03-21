@@ -37,7 +37,7 @@ void udp_sender_task(void *pvParameters)
     {
         extract_data_from_globals(&out_data);
         sendto(sock, &out_data, sizeof(out_data), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Send at 10Hz
+        vTaskDelay(pdMS_TO_TICKS(100)); // Send at 10Hz
     }
 }
 
@@ -83,10 +83,10 @@ void process_dashboard_command(const DashboardCommand *cmd)
     }
     break;
 
-    case 2: // Emergency stop
+    case 2: // Stop running — kill control and return to standby
     {
         state.set_kill(true);
-        serial_print("RX: EMERGENCY STOP\n");
+        serial_print("RX: Stop running\n");
     }
     break;
 
