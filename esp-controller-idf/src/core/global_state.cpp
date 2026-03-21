@@ -372,6 +372,11 @@ ADCAddress GlobalState::getADCAddress(int magnetId) const
     return magnetList.getMagnetById(magnetId).adcAddress;
 }
 
+Vector3 GlobalState::getMagnetPosition(int magnetId) const
+{
+    return magnetList.getMagnetById(magnetId).position;
+}
+
 // ============= Ideal Direction methods =============
 
 Vector3 GlobalState::getIdealDirection() const

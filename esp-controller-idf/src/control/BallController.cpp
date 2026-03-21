@@ -31,35 +31,12 @@ void BallController::initLUT()
 
 void BallController::initMagnets()
 {
-    float phi = (1.0f + sqrtf(5.0f)) / 2.0f;
-    float inv_phi = 1.0f / phi;
-    int idx = 0;
-
-    float x_vals[] = {-1, 1};
-    float y_vals[] = {-1, 1};
-    float z_vals[] = {-1, 1};
-
-    for (int i = 0; i < 2; i++)
+    GlobalState &state = GlobalState::instance();
+    for (int i = 0; i < 20; i++)
     {
-        for (int j = 0; j < 2; j++)
-        {
-            for (int k = 0; k < 2; k++)
-            {
-                magnets[idx++] = Vector3(x_vals[i], y_vals[j], z_vals[k]).normalized();
-            }
-        }
-    }
-
-    float i_vals[] = {-1, 1};
-    float j_vals[] = {-1, 1};
-    for (int a = 0; a < 2; a++)
-    {
-        for (int b = 0; b < 2; b++)
-        {
-            magnets[idx++] = Vector3(0, i_vals[a] * phi, j_vals[b] * inv_phi).normalized();
-            magnets[idx++] = Vector3(i_vals[a] * inv_phi, 0, j_vals[b] * phi).normalized();
-            magnets[idx++] = Vector3(i_vals[a] * phi, j_vals[b] * inv_phi, 0).normalized();
-        }
+        // Keep unit-length vectors for solver stability while sourcing geometry
+        // from the global magnet configuration.
+        magnets[i] = state.getMagnetPosition(i + 1).normalized();
     }
 }
 
