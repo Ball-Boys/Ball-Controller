@@ -83,10 +83,10 @@ void process_dashboard_command(const DashboardCommand *cmd)
     }
     break;
 
-    case 2: // Emergency stop
+    case 2: // Stop running — kill control and return to standby
     {
         state.set_kill(true);
-        serial_print("RX: EMERGENCY STOP\n");
+        serial_print("RX: Stop running\n");
     }
     break;
 

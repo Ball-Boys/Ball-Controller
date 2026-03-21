@@ -345,9 +345,20 @@ State *RunningState::execute()
     ensure_udp_sender();
     ensure_udp_receiver();
 
-    // Main loop - check for calibration requests periodically
+    // Main loop - check for calibration requests or stop
     while (true)
     {
+        // Check if stop requested (kill flag)
+        if (state.isKilled())
+        {
+            printf("Stop requested, stopping control loop\n");
+            vTaskDelay(pdMS_TO_TICKS(500)); // Wait for control task to exit
+            state.set_kill(false);
+            state.zeroControl();
+            printf("Returning to StandbyState\n");
+            return &StandbyState::getInstance();
+        }
+
         // Check if recalibration is requested
         if (state.getCalibrationRequested())
         {
