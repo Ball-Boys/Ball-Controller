@@ -107,7 +107,7 @@ void process_dashboard_command(const DashboardCommand *cmd)
 void udp_receiver_task(void *pvParameters)
 {
     // Wait for WiFi to stabilize
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     // Create socket for receiving commands
     struct sockaddr_in listen_addr;
