@@ -8,258 +8,310 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-GlobalState& GlobalState::instance() {
+GlobalState &GlobalState::instance()
+{
     static GlobalState singleton(MAGNET_CONFIG);
     return singleton;
 }
 
-GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20>& config) 
+GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config)
     : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
-      idealDirection(0.0f, 0.0f, 0.0f) {
-        orientationHistory.reserve(kMaxOrientationHistorySize);
-        angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
-        killedMutex = xSemaphoreCreateMutex();
+      idealDirection(0.0f, 0.0f, 0.0f)
+{
+    orientationHistory.reserve(kMaxOrientationHistorySize);
+    angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
+    killedMutex = xSemaphoreCreateMutex();
+    stateMutex = xSemaphoreCreateMutex();
 }
 
 // ============= Orientation methods =============
 
-Orientation GlobalState::getOrientation() const {
+Orientation GlobalState::getOrientation() const
+{
     // Gets the latest orientation from the list
-    if (orientationHistory.empty()) {
+    if (orientationHistory.empty())
+    {
         return Orientation(1.0f, 0.0f, 0.0f, 0.0f); // Default orientation if none available
     }
     return orientationHistory.back();
 }
 
-void GlobalState::setOrientation(const Orientation& value) {
+void GlobalState::setOrientation(const Orientation &value)
+{
     orientationHistory.push_back(value);
-    if (orientationHistory.size() > kMaxOrientationHistorySize) {
+    if (orientationHistory.size() > kMaxOrientationHistorySize)
+    {
         orientationHistory.erase(orientationHistory.begin());
     }
 }
 
-void GlobalState::resetOrientation() {
+void GlobalState::resetOrientation()
+{
     orientationHistory.clear();
 }
 
-
-const std::vector<Orientation>& GlobalState::getOrientationHistory() const {
+const std::vector<Orientation> &GlobalState::getOrientationHistory() const
+{
     return orientationHistory;
 }
 
-const std::vector<Orientation>& GlobalState::getOrientationHistory(int last_n) const {
+const std::vector<Orientation> &GlobalState::getOrientationHistory(int last_n) const
+{
     static std::vector<Orientation> subset;
     subset.clear();
-    
-    if (last_n <= 0) {
+
+    if (last_n <= 0)
+    {
         return subset;
     }
-    
+
     int start_idx = std::max(0, static_cast<int>(orientationHistory.size()) - last_n);
-    subset.insert(subset.end(), 
-                  orientationHistory.begin() + start_idx, 
+    subset.insert(subset.end(),
+                  orientationHistory.begin() + start_idx,
                   orientationHistory.end());
     return subset;
 }
 
-AngularVelocity GlobalState::getAngularVelocity() const {
+AngularVelocity GlobalState::getAngularVelocity() const
+{
     // Gets the latest angular velocity from the list
-    if (angularVelocityHistory.empty()) {
+    if (angularVelocityHistory.empty())
+    {
         return AngularVelocity(0.0f, 0.0f, 0.0f); // Default angular velocity if none available
     }
     return angularVelocityHistory.back();
 }
 
-void GlobalState::setAngularVelocity(const AngularVelocity& value) {
+void GlobalState::setAngularVelocity(const AngularVelocity &value)
+{
     angularVelocityHistory.push_back(value);
-    if (angularVelocityHistory.size() > kMaxAngularVelocityHistorySize) {
+    if (angularVelocityHistory.size() > kMaxAngularVelocityHistorySize)
+    {
         angularVelocityHistory.erase(angularVelocityHistory.begin());
     }
 }
 
-void GlobalState::resetAngularVelocity() {
+void GlobalState::resetAngularVelocity()
+{
     angularVelocityHistory.clear();
 }
 
-const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory() const {
+const std::vector<AngularVelocity> &GlobalState::getAngularVelocityHistory() const
+{
     return angularVelocityHistory;
 }
 
-const std::vector<AngularVelocity>& GlobalState::getAngularVelocityHistory(int last_n) const {
+const std::vector<AngularVelocity> &GlobalState::getAngularVelocityHistory(int last_n) const
+{
     static std::vector<AngularVelocity> subset;
     subset.clear();
-    
-    if (last_n <= 0) {
+
+    if (last_n <= 0)
+    {
         return subset;
     }
-    
+
     int start_idx = std::max(0, static_cast<int>(angularVelocityHistory.size()) - last_n);
-    subset.insert(subset.end(), 
-                  angularVelocityHistory.begin() + start_idx, 
+    subset.insert(subset.end(),
+                  angularVelocityHistory.begin() + start_idx,
                   angularVelocityHistory.end());
     return subset;
 }
 
-void GlobalState::setAngularVelocityHistory(const std::vector<AngularVelocity>& history) {
+void GlobalState::setAngularVelocityHistory(const std::vector<AngularVelocity> &history)
+{
     angularVelocityHistory = history;
 }
 
-void GlobalState::setOrientationHistory(const std::vector<Orientation>& history) {
+void GlobalState::setOrientationHistory(const std::vector<Orientation> &history)
+{
     orientationHistory = history;
 }
 
 // ============= Control Output methods =============
 
-std::vector<ControlOutputs> GlobalState::getLatestControl() const {
+std::vector<ControlOutputs> GlobalState::getLatestControl() const
+{
     std::vector<ControlOutputs> latest;
-    for (const auto& pair : magnetList.magnets) {
-        const auto& controlHistory = pair.second.getControlHistory();
-        if (!controlHistory.empty()) {
-            const auto& latestControl = controlHistory.back();
-            if (latestControl.current_value != 0.0f) {
-                latest.push_back(latestControl);
-            } else {
-                latest.push_back(ControlOutputs::zero(pair.first));
+    // Reserve once to avoid repeated allocations in the fast control loop
+    latest.reserve(magnetList.magnets.size());
+    for (const auto &pair : magnetList.magnets)
+    {
+        const auto &controlHistory = pair.second.getControlHistory();
+        if (!controlHistory.empty())
+        {
+            const auto &latestControl = controlHistory.back();
+            if (latestControl.current_value != 0.0f)
+            {
+                latest.emplace_back(latestControl);
+            }
+            else
+            {
+                latest.emplace_back(ControlOutputs::zero(pair.first));
             }
         }
-        else 
+        else
         {
             // If no control history, we can consider it as zero control
-            latest.push_back(ControlOutputs::zero(pair.first));
+            latest.emplace_back(ControlOutputs::zero(pair.first));
         }
     }
     return latest;
 }
 
-ControlOutputs GlobalState::getLatestControl(int magnetId) const {
-    const auto& magnet = magnetList.getMagnetById(magnetId);
-    if (magnet.getControlHistory().empty()) {
+ControlOutputs GlobalState::getLatestControl(int magnetId) const
+{
+    const auto &magnet = magnetList.getMagnetById(magnetId);
+    if (magnet.getControlHistory().empty())
+    {
         throw std::runtime_error("No control outputs yet for this magnet");
     }
     return magnet.getControlHistory().back();
 }
 
-void GlobalState::setControl(const ControlOutputs& value) {
+void GlobalState::setControl(const ControlOutputs &value)
+{
+    // Treat magnetId == 0 as a no-op (represents "no magnet") to avoid exceptions
+    if (value.magnetId == 0) {
+        return;
+    }
     auto it = magnetList.magnets.find(value.magnetId);
-    if (it == magnetList.magnets.end()) {
+    if (it == magnetList.magnets.end())
+    {
         throw std::out_of_range("Magnet ID not found: " + std::to_string(value.magnetId));
     }
     it->second.setControlValue(value);
 }
 
-void GlobalState::setControl(const std::vector<ControlOutputs>& values) {
-    for (const auto& ctrl : values) {
+void GlobalState::setControl(const std::vector<ControlOutputs> &values)
+{
+    for (const auto &ctrl : values)
+    {
         setControl(ctrl);
     }
 }
 
-void GlobalState::zeroControl() {
-    for (auto& pair : magnetList.magnets) {
+void GlobalState::zeroControl()
+{
+    for (auto &pair : magnetList.magnets)
+    {
         pair.second.zeroControl();
     }
 }
 
 // ============= Offset methods =============
 
-Orientation GlobalState::getOffset() const {
+Orientation GlobalState::getOffset() const
+{
     return offset;
 }
 
-void GlobalState::setOffset(const Orientation& value) {
+void GlobalState::setOffset(const Orientation &value)
+{
     offset = value;
 }
 
 // ============= Current Values methods =============
 
-const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues() const {
+const std::vector<std::vector<CurrentInfo>> &GlobalState::getAllCurrentValues() const
+{
     static std::vector<std::vector<CurrentInfo>> allValues;
     allValues.clear();
-    
-    for (const auto& pair : magnetList.magnets) {
+
+    for (const auto &pair : magnetList.magnets)
+    {
         allValues.push_back(pair.second.getCurrentHistory());
     }
     return allValues;
 }
 
-const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId) const {
+const std::vector<CurrentInfo> &GlobalState::getCurrentValues(int magnetId) const
+{
     static std::vector<CurrentInfo> cached;
-    const auto& magnet = magnetList.getMagnetById(magnetId);
+    const auto &magnet = magnetList.getMagnetById(magnetId);
     cached = magnet.getCurrentHistory();
     return cached;
 }
 
-const std::vector<CurrentInfo>& GlobalState::getCurrentValues(int magnetId, int last_n) const {
-    const auto& magnet = magnetList.getMagnetById(magnetId);
+const std::vector<CurrentInfo> &GlobalState::getCurrentValues(int magnetId, int last_n) const
+{
+    const auto &magnet = magnetList.getMagnetById(magnetId);
     static std::vector<CurrentInfo> subset;
-    
+
     std::vector<CurrentInfo> history = magnet.getCurrentHistory();
     subset.clear();
-    
-    if (last_n <= 0) {
+
+    if (last_n <= 0)
+    {
         return subset;
     }
-    
+
     int start_idx = std::max(0, static_cast<int>(history.size()) - last_n);
-    subset.insert(subset.end(), 
-                  history.begin() + start_idx, 
+    subset.insert(subset.end(),
+                  history.begin() + start_idx,
                   history.end());
     return subset;
 }
 
-const std::vector<std::vector<CurrentInfo>>& GlobalState::getAllCurrentValues(int last_n) const {
+const std::vector<std::vector<CurrentInfo>> &GlobalState::getAllCurrentValues(int last_n) const
+{
     static std::vector<std::vector<CurrentInfo>> subset;
     subset.clear();
-    
-    if (last_n <= 0) {
+
+    if (last_n <= 0)
+    {
         return subset;
     }
-    
-    for (const auto& pair : magnetList.magnets) {
-        const auto& history = pair.second.getCurrentHistory(last_n);
+
+    for (const auto &pair : magnetList.magnets)
+    {
+        const auto &history = pair.second.getCurrentHistory(last_n);
         int start_idx = std::max(0, static_cast<int>(history.size()) - last_n);
         std::vector<CurrentInfo> magnetSubset(
             history.begin() + start_idx,
-            history.end()
-        );
+            history.end());
         subset.push_back(magnetSubset);
     }
     return subset;
 }
 
-CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const {
-    const auto& magnet = magnetList.getMagnetById(magnetId);
+CurrentInfo GlobalState::getLatestCurrentValues(int magnetId) const
+{
+    const auto &magnet = magnetList.getMagnetById(magnetId);
     std::vector<CurrentInfo> history = magnet.getCurrentHistory();
-    if (history.empty()) {
+    if (history.empty())
+    {
         throw std::runtime_error("No current values yet for this magnet");
     }
     return history.back();
 }
 
-
-std::vector<CurrentInfo> GlobalState::currentControlLoop() {
+std::vector<CurrentInfo> GlobalState::currentControlLoop()
+{
     int64_t loop_start = esp_timer_get_time();
-    
+
     std::vector<ControlOutputs> latestControls = getLatestControl();
     std::vector<int> mag_ids;
     std::vector<int> magnets_to_zero = mag_ids;
 
-    
-
-    for (const auto& control : latestControls) {
-        if (control.current_value != 0.0f) {
+    for (const auto &control : latestControls)
+    {
+        if (control.current_value != 0.0f)
+        {
             mag_ids.push_back(control.magnetId);
             isMagnetRunning.insert(control.magnetId);
-            
-        } else {
-            if (isMagnetRunning.count(control.magnetId) > 0) {
+        }
+        else
+        {
+            if (isMagnetRunning.count(control.magnetId) > 0)
+            {
                 magnets_to_zero.push_back(control.magnetId);
                 isMagnetRunning.erase(control.magnetId);
             }
-            
         }
     }
-    
+
     setPWMOutputs(magnets_to_zero, std::vector<int>(magnets_to_zero.size(), 0));
 
     currentControlledMagnetIds = mag_ids;
@@ -267,8 +319,9 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
     std::vector<CurrentInfo> currentInfos;
 
     // Method 2 to make our controller happier (do things 1 by 1)
-    for (size_t i = 0; i < mag_ids.size(); ++i) {
-        
+    for (size_t i = 0; i < mag_ids.size(); ++i)
+    {
+
         int magnetId = mag_ids[i];
         std::vector<float> currentValues = retreveCurrentValueFromADC({magnetId});
         float currentValue = currentValues[0]; // Assuming single value per magnet
@@ -279,13 +332,12 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
         int newPWMSignal = magnetList.getMagnetById(magnetId).getNextCurrentValuePI();
         setPWMOutputs({magnetId}, {newPWMSignal});
     }
-        
+
     // Read ADC values
     // std::vector<float> currents = retreveCurrentValueFromADC(mag_ids);
 
     // // printf("[ADC] Current values read from ADC | Time: %lld µs\n", (adc_end - adc_start));
-    
-    
+
     // std::vector<int> newPWMSignals;
 
     // // Process each magnet and calculate control signals
@@ -302,45 +354,202 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop() {
 
     // setPWMOutputs(mag_ids, newPWMSignals);
 
-
     int64_t loop_end = esp_timer_get_time();
     int64_t total_time = (loop_end - loop_start);
-
 
     return currentInfos;
 }
 
-
-
 // ============= Magnet Info helper methods =============
 
-PWMAddress GlobalState::getPWMAddress(int magnetId) const {
+PWMAddress GlobalState::getPWMAddress(int magnetId) const
+{
     return magnetList.getMagnetById(magnetId).pwmAddress;
 }
 
-ADCAddress GlobalState::getADCAddress(int magnetId) const {
+ADCAddress GlobalState::getADCAddress(int magnetId) const
+{
     return magnetList.getMagnetById(magnetId).adcAddress;
+}
+
+Vector3 GlobalState::getMagnetPosition(int magnetId) const
+{
+    return magnetList.getMagnetById(magnetId).position;
 }
 
 // ============= Ideal Direction methods =============
 
-Vector3 GlobalState::getIdealDirection() const {
+Vector3 GlobalState::getIdealDirection() const
+{
     return idealDirection;
 }
 
-void GlobalState::setIdealDirection(const Vector3& value) {
+void GlobalState::setIdealDirection(const Vector3 &value)
+{
     idealDirection = value;
 }
 
-void GlobalState::set_kill(bool value) {
+void GlobalState::set_kill(bool value)
+{
     xSemaphoreTake(this->killedMutex, portMAX_DELAY);
     this->killed = value;
     xSemaphoreGive(this->killedMutex);
 }
 
-bool GlobalState::isKilled() const {
+bool GlobalState::isKilled() const
+{
     xSemaphoreTake(this->killedMutex, portMAX_DELAY);
     bool isKilled = this->killed;
     xSemaphoreGive(this->killedMutex);
     return isKilled;
+}
+
+// ============= State Management methods =============
+
+GlobalState::SystemState GlobalState::getSystemState() const
+{
+    if (stateMutex == NULL)
+    {
+        return systemState;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    GlobalState::SystemState state = systemState;
+    xSemaphoreGive(stateMutex);
+    return state;
+}
+
+void GlobalState::setSystemState(GlobalState::SystemState state)
+{
+    if (stateMutex == NULL)
+    {
+        systemState = state;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    systemState = state;
+    xSemaphoreGive(stateMutex);
+}
+
+bool GlobalState::getCalibrationRequested() const
+{
+    if (stateMutex == NULL)
+    {
+        return calibrationRequested;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    bool requested = calibrationRequested;
+    xSemaphoreGive(stateMutex);
+    return requested;
+}
+
+void GlobalState::requestCalibration()
+{
+    if (stateMutex == NULL)
+    {
+        calibrationRequested = true;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    calibrationRequested = true;
+    xSemaphoreGive(stateMutex);
+}
+
+void GlobalState::clearCalibrationRequest()
+{
+    if (stateMutex == NULL)
+    {
+        calibrationRequested = false;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    calibrationRequested = false;
+    xSemaphoreGive(stateMutex);
+}
+
+bool GlobalState::getStartRequested() const
+{
+    if (stateMutex == NULL)
+    {
+        return startRequested;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    bool requested = startRequested;
+    xSemaphoreGive(stateMutex);
+    return requested;
+}
+
+void GlobalState::requestStart()
+{
+    if (stateMutex == NULL)
+    {
+        startRequested = true;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    startRequested = true;
+    xSemaphoreGive(stateMutex);
+}
+
+void GlobalState::clearStartRequest()
+{
+    if (stateMutex == NULL)
+    {
+        startRequested = false;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    startRequested = false;
+    xSemaphoreGive(stateMutex);
+}
+
+// ============= Calibration Input methods =============
+
+bool GlobalState::getCalibrationInputAvailable() const
+{
+    if (stateMutex == NULL)
+    {
+        return calibrationInputAvailable;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    bool available = calibrationInputAvailable;
+    xSemaphoreGive(stateMutex);
+    return available;
+}
+
+Vector3 GlobalState::getCalibrationInput() const
+{
+    if (stateMutex == NULL)
+    {
+        return calibrationInput;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    Vector3 input = calibrationInput;
+    xSemaphoreGive(stateMutex);
+    return input;
+}
+
+void GlobalState::setCalibrationInput(const Vector3 &direction)
+{
+    if (stateMutex == NULL)
+    {
+        calibrationInput = direction;
+        calibrationInputAvailable = true;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    calibrationInput = direction;
+    calibrationInputAvailable = true;
+    xSemaphoreGive(stateMutex);
+}
+
+void GlobalState::clearCalibrationInput()
+{
+    if (stateMutex == NULL)
+    {
+        calibrationInputAvailable = false;
+        return;
+    }
+    xSemaphoreTake(stateMutex, portMAX_DELAY);
+    calibrationInputAvailable = false;
+    xSemaphoreGive(stateMutex);
 }

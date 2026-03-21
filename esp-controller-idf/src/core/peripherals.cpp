@@ -300,10 +300,11 @@ static i2c_master_dev_handle_t get_pwm_device(int driver_i2c_address) {
 }
 
 void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
-    printf("Setting PWM on I2C addr 0x%02X, channel %d to value %d\n", driver_i2c_address, channel, value_0_255);
     if (!s_i2c_initialized) {
         init_pwm_driver();
     }
+    // vTaskDelay(0.05);
+    // printf("Setting PWM - I2C Addr: 0x%02X, Channel: %d, Value: %d\n", driver_i2c_address, channel, value_0_255);
 
     if (channel < 0 || channel > 15) {
         return;
@@ -560,7 +561,7 @@ void init_imu() {
     i2c_device_config_t imu_cfg = {};
     imu_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     imu_cfg.device_address = BNO08X_I2C_ADDR;
-    imu_cfg.scl_speed_hz = I2C_CLOCK_HZ;
+    imu_cfg.scl_speed_hz = I2C_CLK_SRC_DEFAULT;
 
     esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &imu_cfg, &s_imu_device);
     if (err != ESP_OK) {
@@ -666,10 +667,20 @@ void init_comms() {
     ESP_ERROR_CHECK(esp_netif_init());
     
     // Create default event loop (handles wifi events in the background)
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    {
+        esp_err_t _err = esp_event_loop_create_default();
+        if (_err != ESP_OK && _err != ESP_ERR_INVALID_STATE) {
+            ESP_ERROR_CHECK(_err);
+        }
+        // If ESP_ERR_INVALID_STATE, the default loop already exists — continue.
+    }
     
-    // Create the default Wi-Fi Access Point interface
-    esp_netif_create_default_wifi_ap();
+    // Create the default Wi-Fi Access Point interface (if not already created)
+    if (esp_netif_get_handle_from_ifkey("WIFI_AP_DEF") == NULL) {
+        esp_netif_create_default_wifi_ap();
+    } else {
+        ESP_LOGI(TAG, "Default AP netif already exists, skipping creation");
+    }
 
     // Initialize Wi-Fi with default configuration
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();

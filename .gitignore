@@ -55,7 +55,7 @@ venv
 __pycache__
 
 .vscode/**
-
+esp-controller-idf/managed-components/
 sdkconfig.esp32dev
 
 Ball-Controller.code-workspace
