@@ -200,6 +200,47 @@ State *CalibrateState::execute()
     return &RunningState::getInstance();
 }
 
+void core1LoopTaskTest(void *param)
+{
+    GlobalState& instance = GlobalState::instance();
+    float current_value = 3.0f;
+    while (true)
+    {
+
+        instance.setControl(ControlOutputs(1, current_value));
+        printf("Setting Control to %f", current_value);
+        if (current_value == 0.0f)
+        {
+            current_value = 3.0f;
+        }
+        else
+        {
+            current_value = 0.0f;
+        }
+
+
+        const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
+
+        const int64_t slow_loop_time_us = 3 * 1000000.0f; // instance.slowLoopTime * 1000000.0f;
+        const int64_t fast_loop_time_us = instance.fastLoopTime * 1000000.0f;
+
+        const int64_t end_us = esp_timer_get_time() + slow_loop_time_us;
+        int64_t fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
+
+        while (esp_timer_get_time() < end_us)
+        {
+            fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
+
+            instance.currentControlLoop();
+
+            if (esp_timer_get_time() < fast_loop_end_us)
+            {
+                vTaskDelay(pdMS_TO_TICKS(0.0001f)); // slight smoothing of operation here
+            }
+        }
+    }
+}
+
 void core1LoopTask(void *param)
 {
     // This is the task that runs on Core 1 for the 10ms control loop
@@ -222,7 +263,6 @@ void core1LoopTask(void *param)
         for (const auto& orientation : imu_data.orientation) {
             instance.setOrientation(orientation);
         }
-
 
         // compute control outputs
         ControlOutputs control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
@@ -261,7 +301,7 @@ State *RunningState::execute()
     state.setSystemState(GlobalState::SystemState::RUNNING);
 
     // 1. Spawn Core 1 Task for the 10ms control loop
-    xTaskCreatePinnedToCore(core1LoopTask, "Core1", 4096, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(core1LoopTaskTest, "Core1", 4096, NULL, 1, NULL, 1);
     printf("Started Core 1 control loop task\n");
 
     // 2. Spawn telemetry sender task (Core 0, send at 10Hz to dashboard)
@@ -301,7 +341,7 @@ State *TestingState::execute()
     // Run scripts through it. No state switching ever.
 
     // test_imu();
-    test_1();
+    test_0();
     // test_stress_20ms();
     // test_4();
     // test_5();

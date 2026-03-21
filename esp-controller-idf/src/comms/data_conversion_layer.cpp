@@ -6,6 +6,7 @@
 
 
 void extract_data_from_globals(ball_data_packet* out_packet) {
+
     if (out_packet == nullptr) {
         return;
     }
@@ -28,6 +29,11 @@ void extract_data_from_globals(ball_data_packet* out_packet) {
     out_packet->orientation_wxyz[1] = current_orientation.x;
     out_packet->orientation_wxyz[2] = current_orientation.y;
     out_packet->orientation_wxyz[3] = current_orientation.z;
+
+    out_packet->orientation_wxyz[0] = 0.9239;
+    out_packet->orientation_wxyz[1] = 0.3827;
+    out_packet->orientation_wxyz[2] = 0;
+    out_packet->orientation_wxyz[3] = 0;
 
     // Angular velocity
     AngularVelocity current_ang_vel = global_state.getAngularVelocity();

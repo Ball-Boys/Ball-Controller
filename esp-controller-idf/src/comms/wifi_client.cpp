@@ -37,7 +37,7 @@ void udp_sender_task(void *pvParameters)
     {
         extract_data_from_globals(&out_data);
         sendto(sock, &out_data, sizeof(out_data), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Send at 10Hz
+        vTaskDelay(pdMS_TO_TICKS(100)); // Send at 10Hz
     }
 }
 
