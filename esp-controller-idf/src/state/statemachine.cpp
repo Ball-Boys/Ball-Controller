@@ -239,22 +239,26 @@ State *CalibrateState::execute()
 
 void core1LoopTaskTest(void *param)
 {
-    GlobalState& instance = GlobalState::instance();
-    float current_value = 3.0f;
+    GlobalState &instance = GlobalState::instance();
+    float current_value = 5.0f;
     while (true)
     {
+        if (instance.isKilled())
+        {
+            // Reset the kill flag for the next run
+            break; // Exit the loop to end the task
+        }
 
         instance.setControl(ControlOutputs(1, current_value));
         printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
-            current_value = 3.0f;
+            current_value = 5.0f;
         }
         else
         {
             current_value = 0.0f;
         }
-
 
         const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
 
@@ -293,11 +297,13 @@ void core1LoopTask(void *param)
         // check IMU and get value
         IMUData imu_data = readIMU();
 
-        for (const auto& angular_velocity : imu_data.angular_velocity) {
+        for (const auto &angular_velocity : imu_data.angular_velocity)
+        {
             instance.setAngularVelocity(angular_velocity);
         }
 
-        for (const auto& orientation : imu_data.orientation) {
+        for (const auto &orientation : imu_data.orientation)
+        {
             instance.setOrientation(orientation);
         }
 
