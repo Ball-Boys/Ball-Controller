@@ -56,14 +56,23 @@ class DashboardGUI:
         self.ball_velocity = [0.0, 0.0]
         self.calibration_offset_deg = 0.0  # degrees of correction
 
+        # Telemetry-driven model state
+        self.orientation_wxyz = [1.0, 0.0, 0.0, 0.0]
+        self.angular_velocity_xyz = [0.0, 0.0, 0.0]
+        self.ball_pos_map = [0.0, 0.0]
+        self.ball_vel_map = [0.0, 0.0]
+        self.map_box_limit = 8.0
+        self.physics_dt = 0.1
+
         # Magnet data storage
         self.magnet_currents = [0.0] * 20
         self.magnet_setpoints = [0.0] * 20
         self.magnet_history = [[] for _ in range(20)]
+        self.magnet_setpoint_history = [[] for _ in range(20)]
         self.magnet_display_mode = "instant"
         self.magnet_grid_padding = 8
         self.magnet_grid_cols = 5
-        self.magnet_grid_rows = 2
+        self.magnet_grid_rows = 4
         self.magnet_scale_max_amps = 15.0
         
         self.setup_ui()
@@ -121,13 +130,14 @@ class DashboardGUI:
                                          bg=self.colors["bg"], fg=self.colors["danger"])
         self.connection_label.pack(side=tk.RIGHT)
         
-        # Main container
-        main_frame = tk.Frame(self.root, bg=self.colors["bg"])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=10)
-        
+        # Main container with draggable divider (left/right resizable)
+        main_pane = tk.PanedWindow(self.root, orient=tk.HORIZONTAL,
+                       bg=self.colors["bg"], sashwidth=8,
+                       sashrelief=tk.FLAT, bd=0)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=18, pady=10)
+
         # Left side - Joystick
-        left_frame = tk.Frame(main_frame, bg=self.colors["bg"])
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        left_frame = tk.Frame(main_pane, bg=self.colors["bg"])
 
         # Overview card
         overview_card = tk.Frame(left_frame, bg=self.colors["panel"], highlightbackground=self.colors["panel_edge"], highlightthickness=1)
@@ -170,8 +180,8 @@ class DashboardGUI:
                              font=("Segoe UI", 12), bg=self.colors["bg"], fg=self.colors["accent"])
         self.joystick_value_label.pack(pady=5)
         
-        # Ball model canvas
-        self.ball_canvas = tk.Canvas(left_frame, width=300, height=300,
+        # Ball model canvas (left: top-down map, right: 3D orientation)
+        self.ball_canvas = tk.Canvas(left_frame, width=560, height=280,
                          bg="#0a0f18", highlightthickness=1, highlightbackground=self.colors["panel_edge"])
         self.ball_canvas.pack(pady=10)
         self.draw_ball_model()
@@ -186,11 +196,17 @@ class DashboardGUI:
         hint_label.pack(pady=5)
         
         # Right side - Controls and status
-        right_frame = tk.Frame(main_frame, bg=self.colors["bg"])
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+        right_frame = tk.Frame(main_pane, bg=self.colors["bg"])
+
+        main_pane.add(left_frame, minsize=480)
+        main_pane.add(right_frame, minsize=420)
         
+        # Top right block (status + controls)
+        top_right_frame = tk.Frame(right_frame, bg=self.colors["bg"])
+        top_right_frame.pack(fill=tk.X)
+
         # Status frame
-        status_frame = tk.LabelFrame(right_frame, text="Status",
+        status_frame = tk.LabelFrame(top_right_frame, text="Status",
                          font=("Segoe UI", 12, "bold"), bg=self.colors["panel"], fg=self.colors["text"])
         status_frame.pack(fill=tk.X, pady=10)
         
@@ -213,7 +229,7 @@ class DashboardGUI:
         self.state_label.pack(anchor="w", pady=(8, 0))
         
         # Control buttons frame
-        button_frame = tk.LabelFrame(right_frame, text="Controls",
+        button_frame = tk.LabelFrame(top_right_frame, text="Controls",
                          font=("Segoe UI", 12, "bold"), bg=self.colors["panel"], fg=self.colors["text"])
         button_frame.pack(fill=tk.X, pady=10)
 
@@ -260,8 +276,16 @@ class DashboardGUI:
                      activebackground="#c4b5fd", activeforeground="#081018",
                      relief="flat", highlightthickness=0)
 
+        # Resizable right-side lower panes (magnets / telemetry)
+        right_data_pane = tk.PanedWindow(right_frame, orient=tk.VERTICAL,
+                         bg=self.colors["bg"], sashwidth=8,
+                         sashrelief=tk.FLAT, bd=0)
+        right_data_pane.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
+
+        magnet_panel = tk.Frame(right_data_pane, bg=self.colors["bg"])
+
         # Magnet display mode controls
-        magnet_mode_row = tk.Frame(right_frame, bg=self.colors["bg"])
+        magnet_mode_row = tk.Frame(magnet_panel, bg=self.colors["bg"])
         magnet_mode_row.pack(fill=tk.X, pady=(0, 4))
 
         magnet_mode_label = tk.Label(magnet_mode_row, text="Magnet View",
@@ -281,18 +305,27 @@ class DashboardGUI:
         self.graph_mode_btn.pack(side=tk.LEFT)
         
         # Magnet visualization frame
-        magnet_frame = tk.LabelFrame(right_frame, text="Magnets",
+        magnet_frame = tk.LabelFrame(magnet_panel, text="Magnets",
                                      font=("Segoe UI", 12, "bold"), bg=self.colors["panel"], fg=self.colors["text"])
-        magnet_frame.pack(fill=tk.X, expand=False, pady=10)
+        magnet_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
-        self.magnet_canvas = tk.Canvas(magnet_frame, width=520, height=390,
-                                       bg="#0d1117", highlightthickness=0)
-        self.magnet_canvas.pack(fill=tk.X, expand=False, padx=10, pady=10)
+        magnet_canvas_wrap = tk.Frame(magnet_frame, bg=self.colors["panel"])
+        magnet_canvas_wrap.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.magnet_canvas = tk.Canvas(magnet_canvas_wrap, width=520, height=390,
+                           bg="#0d1117", highlightthickness=0)
+        self.magnet_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.magnet_scroll = ttk.Scrollbar(magnet_canvas_wrap, orient="vertical",
+                           command=self.magnet_canvas.yview,
+                           style="Dashboard.Vertical.TScrollbar")
+        self.magnet_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.magnet_canvas.configure(yscrollcommand=self.magnet_scroll.set)
+        self.magnet_canvas.bind("<Configure>", lambda _e: self.draw_magnet_grid())
 
         # Telemetry frame
-        telemetry_frame = tk.LabelFrame(right_frame, text="Telemetry",
+        telemetry_frame = tk.LabelFrame(right_data_pane, text="Telemetry",
                         font=("Segoe UI", 12, "bold"), bg=self.colors["panel"], fg=self.colors["text"])
-        telemetry_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
         # Telemetry text display
         self.telemetry_text = tk.Text(telemetry_frame, height=10, width=40,
@@ -300,6 +333,9 @@ class DashboardGUI:
                           highlightthickness=0)
         self.telemetry_text.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
         self.telemetry_text.config(state=tk.DISABLED)  # Read-only
+
+        right_data_pane.add(magnet_panel, minsize=220)
+        right_data_pane.add(telemetry_frame, minsize=140)
         
         # Bind keyboard controls
         self.root.bind("<w>", self.on_key_w)
@@ -348,41 +384,115 @@ class DashboardGUI:
                                          fill=self.colors["accent"], outline="#14b8a6", width=2)
 
     def draw_ball_model(self):
-        """Draw 2D ball position/velocity model"""
+        """Draw top-down position view and 3D orientation view."""
         self.ball_canvas.delete("all")
 
-        # center
-        cx, cy = 150, 150
-        self.ball_canvas.create_oval(cx-120, cy-120, cx+120, cy+120, outline=self.colors["panel_edge"], width=2)
-        self.ball_canvas.create_line(cx, cy-120, cx, cy+120, fill="#334155")
-        self.ball_canvas.create_line(cx-120, cy, cx+120, cy, fill="#334155")
+        w = max(1, int(self.ball_canvas.winfo_width()))
+        h = max(1, int(self.ball_canvas.winfo_height()))
+        mid = w // 2
 
-        self.ball_canvas.create_text(20, 18, anchor="w", fill=self.colors["muted"],
-                         font=("Segoe UI", 9), text="Ball model")
+        self._draw_top_down_panel(10, 10, mid - 10, h - 10)
+        self._draw_orientation_panel(mid + 10, 10, w - 10, h - 10)
 
-        # draw reference joystick vector
-        jsx = cx + self.joystick_x * 110
-        jsy = cy - self.joystick_y * 110
-        self.ball_canvas.create_line(cx, cy, jsx, jsy, fill=self.colors["success"], width=2, arrow=tk.LAST)
+    def _draw_top_down_panel(self, x0, y0, x1, y1):
+        """Left panel: top-down room map with estimated position and velocity."""
+        c = self.ball_canvas
+        c.create_rectangle(x0, y0, x1, y1, outline=self.colors["panel_edge"], width=1)
+        c.create_text(x0 + 8, y0 + 8, anchor="nw", fill=self.colors["muted"],
+                      font=("Segoe UI", 9), text="Top-down position")
 
-        # apply calibration offset rotation to joystick vector
-        angle = math.radians(self.calibration_offset_deg)
-        c, s = math.cos(angle), math.sin(angle)
-        rx = self.joystick_x * c - self.joystick_y * s
-        ry = self.joystick_x * s + self.joystick_y * c
-        bx = cx + rx * 110
-        by = cy - ry * 110
-        self.ball_canvas.create_line(cx, cy, bx, by, fill=self.colors["warning"], width=2, dash=(4,2), arrow=tk.LAST)
+        pad = 22
+        map_left = x0 + pad
+        map_top = y0 + pad
+        map_right = x1 - pad
+        map_bottom = y1 - pad
+        c.create_rectangle(map_left, map_top, map_right, map_bottom, outline="#334155", width=1)
 
-        # update position from simulated state
-        posx = cx + self.ball_position[0] * 100
-        posy = cy - self.ball_position[1] * 100
-        self.ball_canvas.create_oval(posx-8, posy-8, posx+8, posy+8, fill=self.colors["danger"], outline="")
+        def world_to_canvas(px, py):
+            sx = (px / self.map_box_limit)
+            sy = (py / self.map_box_limit)
+            cx = (map_left + map_right) * 0.5 + sx * (map_right - map_left) * 0.5
+            cy = (map_top + map_bottom) * 0.5 - sy * (map_bottom - map_top) * 0.5
+            return cx, cy
 
-        # velocity vector
-        vtx = posx + self.ball_velocity[0] * 100
-        vty = posy - self.ball_velocity[1] * 100
-        self.ball_canvas.create_line(posx, posy, vtx, vty, fill=self.colors["accent_2"], width=2)
+        # center cross
+        cx, cy = world_to_canvas(0.0, 0.0)
+        c.create_line(cx, map_top, cx, map_bottom, fill="#243041", dash=(2, 2))
+        c.create_line(map_left, cy, map_right, cy, fill="#243041", dash=(2, 2))
+
+        bx, by = world_to_canvas(self.ball_pos_map[0], self.ball_pos_map[1])
+        c.create_oval(bx - 8, by - 8, bx + 8, by + 8, fill=self.colors["danger"], outline="")
+
+        # Velocity vector (estimated from gyro)
+        vel_scale = 12.0
+        vx = self.ball_vel_map[0]
+        vy = self.ball_vel_map[1]
+        c.create_line(bx, by, bx + vx * vel_scale, by - vy * vel_scale,
+                      fill=self.colors["accent_2"], width=2, arrow=tk.LAST)
+
+        # Desired direction vector from joystick
+        c.create_line(bx, by, bx + self.joystick_x * 30, by - self.joystick_y * 30,
+                      fill=self.colors["warning"], width=2, arrow=tk.LAST)
+
+    def _quat_to_rot(self, q):
+        """Quaternion (w,x,y,z) to 3x3 rotation matrix."""
+        w, x, y, z = q
+        xx, yy, zz = x * x, y * y, z * z
+        xy, xz, yz = x * y, x * z, y * z
+        wx, wy, wz = w * x, w * y, w * z
+        return [
+            [1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)],
+            [2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)],
+            [2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)],
+        ]
+
+    def _mat_vec(self, m, v):
+        return [
+            m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+            m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+            m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
+        ]
+
+    def _draw_orientation_panel(self, x0, y0, x1, y1):
+        """Right panel: 3D sphere with axes rotated by IMU quaternion."""
+        c = self.ball_canvas
+        c.create_rectangle(x0, y0, x1, y1, outline=self.colors["panel_edge"], width=1)
+        c.create_text(x0 + 8, y0 + 8, anchor="nw", fill=self.colors["muted"],
+                      font=("Segoe UI", 9), text="3D orientation (IMU)")
+
+        cx = (x0 + x1) * 0.5
+        cy = (y0 + y1) * 0.55
+        radius = min((x1 - x0), (y1 - y0)) * 0.33
+
+        # Sphere outline
+        c.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
+                      outline="#334155", width=2)
+        c.create_oval(cx - radius, cy - radius * 0.35, cx + radius, cy + radius * 0.35,
+                      outline="#223047", width=1)
+
+        rot = self._quat_to_rot(self.orientation_wxyz)
+
+        def proj(v):
+            # Simple perspective-like projection for readability
+            px = cx + (v[0] + 0.35 * v[2]) * radius
+            py = cy - (v[1] - 0.15 * v[2]) * radius
+            return px, py
+
+        axes = [
+            ([1.0, 0.0, 0.0], "#ef4444"),
+            ([0.0, 1.0, 0.0], "#22c55e"),
+            ([0.0, 0.0, 1.0], "#60a5fa"),
+        ]
+
+        for axis_vec, color in axes:
+            rv = self._mat_vec(rot, axis_vec)
+            ex, ey = proj(rv)
+            c.create_line(cx, cy, ex, ey, fill=color, width=3, arrow=tk.LAST)
+
+        # A marker on the rotated +Z direction to show spin orientation clearly
+        pole = self._mat_vec(rot, [0.0, 0.0, 1.0])
+        px, py = proj(pole)
+        c.create_oval(px - 5, py - 5, px + 5, py + 5, fill="#93c5fd", outline="")
 
     def set_magnet_display_mode(self, mode):
         """Switch between instant and graph magnet display modes."""
@@ -409,8 +519,16 @@ class DashboardGUI:
         rows = self.magnet_grid_rows
         pad = self.magnet_grid_padding
 
-        cell_w = (width - pad * (cols + 1)) / cols
-        cell_h = (height - pad * (rows + 1)) / rows
+        header_h = 26
+        usable_w = max(80, width - pad * (cols + 1))
+        cell_w = usable_w / cols
+
+        fit_cell_h = (height - header_h - pad * (rows + 1)) / rows
+        min_cell_h = 88
+        cell_h = max(min_cell_h, fit_cell_h)
+
+        content_h = header_h + pad + rows * (cell_h + pad)
+        canvas.configure(scrollregion=(0, 0, width, content_h))
 
         canvas.create_text(12, 10, anchor="nw",
                            fill=self.colors["muted"], font=("Segoe UI", 9),
@@ -420,7 +538,7 @@ class DashboardGUI:
             row = index // cols
             col = index % cols
             x0 = pad + col * (cell_w + pad)
-            y0 = 28 + pad + row * (cell_h + pad)
+            y0 = header_h + pad + row * (cell_h + pad)
             x1 = x0 + cell_w
             y1 = y0 + cell_h
             self._draw_magnet_cell(canvas, index, x0, y0, x1, y1)
@@ -461,11 +579,17 @@ class DashboardGUI:
         else:
             latest_timestamp = getattr(self, "latest_telemetry_timestamp", None)
             samples = []
+            setpoint_samples = []
             if latest_timestamp is not None:
                 cutoff = latest_timestamp - 2000
                 samples = [value for sample_time, value in self.magnet_history[index] if sample_time >= cutoff]
+                setpoint_samples = [
+                    value for sample_time, value in self.magnet_setpoint_history[index] if sample_time >= cutoff
+                ]
             if not samples:
                 samples = [current]
+            if not setpoint_samples:
+                setpoint_samples = [setpoint]
 
             sample_count = len(samples)
             step = (graph_right - graph_left) / max(1, sample_count - 1)
@@ -483,8 +607,21 @@ class DashboardGUI:
                 line_points = [coordinate for point in points for coordinate in point]
                 canvas.create_line(*line_points, fill="#93c5fd", width=2, smooth=True)
 
-            set_y = graph_bottom - ((setpoint / self.magnet_scale_max_amps) * (graph_bottom - graph_top))
-            canvas.create_line(graph_left, set_y, graph_right, set_y, fill=self.colors["warning"], width=2)
+            set_count = len(setpoint_samples)
+            set_step = (graph_right - graph_left) / max(1, set_count - 1)
+            set_points = []
+            for sample_index, sample in enumerate(setpoint_samples):
+                sample_value = self._clamp_amps(sample)
+                px = graph_left + sample_index * set_step
+                py = graph_bottom - ((sample_value / self.magnet_scale_max_amps) * (graph_bottom - graph_top))
+                set_points.append((px, py))
+            if len(set_points) > 1:
+                line_points = [coordinate for point in set_points for coordinate in point]
+                canvas.create_line(*line_points, fill=self.colors["warning"], width=2, smooth=True)
+            else:
+                set_y = graph_bottom - ((setpoint / self.magnet_scale_max_amps) * (graph_bottom - graph_top))
+                canvas.create_line(graph_left, set_y, graph_right, set_y, fill=self.colors["warning"], width=2)
+
             canvas.create_text(x0 + width / 2, y1 - 4, text=f"S {setpoint:.1f}A",
                                fill=self.colors["warning"], font=("Segoe UI", 8, "bold"), anchor="s")
 
@@ -500,6 +637,12 @@ class DashboardGUI:
                 cutoff = latest_timestamp - 4000
                 while history and history[0][0] < cutoff:
                     history.pop(0)
+
+            setpoint_history = self.magnet_setpoint_history[magnet_index]
+            setpoint_history.append((latest_timestamp, self._clamp_amps(telemetry.magnet_setpoints[magnet_index])))
+            cutoff = latest_timestamp - 4000
+            while setpoint_history and setpoint_history[0][0] < cutoff:
+                setpoint_history.pop(0)
     
     def on_joystick_click(self, event):
         """Handle joystick click"""
@@ -727,17 +870,17 @@ class DashboardGUI:
                 self.state_label.config(text="State: Disconnected", fg="#888888")
                 self.status_label.config(text="Waiting for ESP32 telemetry...")
 
-        # Animate ball physics (relative to joystick + calibration offset)
-        if self.system_state == "Running":
-            # simple discrete integration
-            self.ball_position[0] += self.ball_velocity[0] * 0.05
-            self.ball_position[1] += self.ball_velocity[1] * 0.05
-            # clamp to bounding area [-1,+1]
-            self.ball_position[0] = max(-1.0, min(1.0, self.ball_position[0]))
-            self.ball_position[1] = max(-1.0, min(1.0, self.ball_position[1]))
+        # Keep legacy local state in sync with telemetry-driven map model for labels.
+        self.ball_position[0] = self.ball_pos_map[0] / self.map_box_limit
+        self.ball_position[1] = self.ball_pos_map[1] / self.map_box_limit
+        self.ball_velocity[0] = self.ball_vel_map[0]
+        self.ball_velocity[1] = self.ball_vel_map[1]
 
         self.draw_ball_model()
-        self.ball_info_label.config(text=f"Position: ({self.ball_position[0]:.2f}, {self.ball_position[1]:.2f}) ")
+        self.ball_info_label.config(
+            text=f"Pos: ({self.ball_pos_map[0]:.2f}, {self.ball_pos_map[1]:.2f})  "
+                 f"Vel: ({self.ball_vel_map[0]:.2f}, {self.ball_vel_map[1]:.2f})"
+        )
 
         self.draw_magnet_grid()
 
@@ -766,12 +909,27 @@ class DashboardGUI:
 
             # Orientation as yaw/pitch/roll approximate from quaternion
             w, x, y, z = telem.orientation_wxyz
+            self.orientation_wxyz = [w, x, y, z]
             # yaw (z-axis rotation)
             yaw = math.degrees(math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z)))
             pitch = math.degrees(math.asin(max(-1.0, min(1.0, 2*(w*y - z*x)))))
             roll = math.degrees(math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y)))
 
             ax, ay, az = telem.angular_velocity_xyz
+            self.angular_velocity_xyz = [ax, ay, az]
+
+            # Estimate top-down linear velocity from angular velocity: v = w x r (r = +z).
+            vel_meas_x = ay
+            vel_meas_y = -ax
+            self.ball_vel_map[0] = 0.85 * self.ball_vel_map[0] + 0.15 * vel_meas_x
+            self.ball_vel_map[1] = 0.85 * self.ball_vel_map[1] + 0.15 * vel_meas_y
+
+            self.ball_pos_map[0] += self.ball_vel_map[0] * self.physics_dt
+            self.ball_pos_map[1] += self.ball_vel_map[1] * self.physics_dt
+
+            # Clamp map position to virtual room bounds.
+            self.ball_pos_map[0] = max(-self.map_box_limit, min(self.map_box_limit, self.ball_pos_map[0]))
+            self.ball_pos_map[1] = max(-self.map_box_limit, min(self.map_box_limit, self.ball_pos_map[1]))
 
             # Telemetry basic summaries
             avg_current = sum(self.magnet_currents) / len(self.magnet_currents)
