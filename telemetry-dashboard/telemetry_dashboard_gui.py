@@ -63,6 +63,32 @@ class DashboardGUI:
         self.ball_vel_map = [0.0, 0.0]
         self.map_box_limit = 8.0
         self.physics_dt = 0.1
+        self.show_magnets_3d = tk.BooleanVar(value=False)
+        self.show_magnet_ids_3d = tk.BooleanVar(value=False)
+
+        # Mirrors esp-controller-idf/src/core/magnet_config.h positions.
+        self.model_magnet_positions = [
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+            (-1.0, 0.0, 0.0),
+            (0.0, -1.0, 0.0),
+            (0.0, 0.0, -1.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, -1.0, 0.0),
+            (1.0, 0.0, 1.0),
+            (-1.0, 0.0, -1.0),
+            (0.0, 1.0, 1.0),
+            (0.0, -1.0, -1.0),
+            (1.0, -1.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (1.0, 0.0, -1.0),
+            (-1.0, 0.0, 1.0),
+            (0.5, 0.5, 0.5),
+            (-0.5, -0.5, -0.5),
+            (0.5, -0.5, 0.5),
+            (-0.5, 0.5, -0.5),
+        ]
 
         # Magnet data storage
         self.magnet_currents = [0.0] * 20
@@ -190,6 +216,37 @@ class DashboardGUI:
                         font=("Segoe UI", 11), bg=self.colors["bg"], fg=self.colors["text"])
         self.ball_info_label.pack(pady=5)
 
+        model_options_row = tk.Frame(left_frame, bg=self.colors["bg"])
+        model_options_row.pack(fill=tk.X, pady=(2, 4))
+
+        self.show_magnets_toggle = tk.Checkbutton(
+            model_options_row,
+            text="Show magnets on 3D model",
+            variable=self.show_magnets_3d,
+            command=self.draw_ball_model,
+            bg=self.colors["bg"],
+            fg=self.colors["muted"],
+            activebackground=self.colors["bg"],
+            activeforeground=self.colors["text"],
+            selectcolor=self.colors["panel"],
+            font=("Segoe UI", 9),
+        )
+        self.show_magnets_toggle.pack(side=tk.LEFT)
+
+        self.show_magnet_ids_toggle = tk.Checkbutton(
+            model_options_row,
+            text="Show IDs",
+            variable=self.show_magnet_ids_3d,
+            command=self.draw_ball_model,
+            bg=self.colors["bg"],
+            fg=self.colors["muted"],
+            activebackground=self.colors["bg"],
+            activeforeground=self.colors["text"],
+            selectcolor=self.colors["panel"],
+            font=("Segoe UI", 9),
+        )
+        self.show_magnet_ids_toggle.pack(side=tk.LEFT, padx=(12, 0))
+
         # Keyboard hint
         hint_label = tk.Label(left_frame, text="Click and drag to move joystick\nOr use WASD keys", 
                      font=("Segoe UI", 10), bg=self.colors["bg"], fg=self.colors["muted"], justify=tk.CENTER)
@@ -261,8 +318,8 @@ class DashboardGUI:
                            relief="flat", highlightthickness=0)
         
         # Emergency stop button (red)
-        self.emergency_btn = tk.Button(button_inner, text="EMERGENCY STOP", 
-                                       command=self.on_emergency_stop,
+        self.stop_btn = tk.Button(button_inner, text="STOP", 
+                                       command=self.on_stop_running,
                            font=("Segoe UI", 14, "bold"), 
                            bg=self.colors["danger"], fg="white", width=20, height=2,
                            activebackground="#fb7185", activeforeground="white",
@@ -395,11 +452,11 @@ class DashboardGUI:
         self._draw_orientation_panel(mid + 10, 10, w - 10, h - 10)
 
     def _draw_top_down_panel(self, x0, y0, x1, y1):
-        """Left panel: top-down room map with estimated position and velocity."""
+        """Left panel: global-frame top-down room map with estimated position and velocity."""
         c = self.ball_canvas
         c.create_rectangle(x0, y0, x1, y1, outline=self.colors["panel_edge"], width=1)
         c.create_text(x0 + 8, y0 + 8, anchor="nw", fill=self.colors["muted"],
-                      font=("Segoe UI", 9), text="Top-down position")
+                      font=("Segoe UI", 9), text="Top-down position (global frame)")
 
         pad = 22
         map_left = x0 + pad
@@ -420,6 +477,14 @@ class DashboardGUI:
         c.create_line(cx, map_top, cx, map_bottom, fill="#243041", dash=(2, 2))
         c.create_line(map_left, cy, map_right, cy, fill="#243041", dash=(2, 2))
 
+        # Global +X / +Y reference in map corner
+        ref_x0 = map_left + 16
+        ref_y0 = map_bottom - 16
+        c.create_line(ref_x0, ref_y0, ref_x0 + 24, ref_y0, fill="#e2e8f0", width=2, arrow=tk.LAST)
+        c.create_line(ref_x0, ref_y0, ref_x0, ref_y0 - 24, fill="#e2e8f0", width=2, arrow=tk.LAST)
+        c.create_text(ref_x0 + 28, ref_y0, text="+X", anchor="w", fill="#cbd5e1", font=("Segoe UI", 8, "bold"))
+        c.create_text(ref_x0, ref_y0 - 28, text="+Y", anchor="s", fill="#cbd5e1", font=("Segoe UI", 8, "bold"))
+
         bx, by = world_to_canvas(self.ball_pos_map[0], self.ball_pos_map[1])
         c.create_oval(bx - 8, by - 8, bx + 8, by + 8, fill=self.colors["danger"], outline="")
 
@@ -433,6 +498,12 @@ class DashboardGUI:
         # Desired direction vector from joystick
         c.create_line(bx, by, bx + self.joystick_x * 30, by - self.joystick_y * 30,
                       fill=self.colors["warning"], width=2, arrow=tk.LAST)
+
+        # Ball body +X projection in global top-down (from IMU quaternion)
+        rot = self._quat_to_rot(self.orientation_wxyz)
+        body_x_world = self._mat_vec(rot, [1.0, 0.0, 0.0])
+        c.create_line(bx, by, bx + body_x_world[0] * 22, by - body_x_world[1] * 22,
+                  fill="#f472b6", width=2, arrow=tk.LAST)
 
     def _quat_to_rot(self, q):
         """Quaternion (w,x,y,z) to 3x3 rotation matrix."""
@@ -453,12 +524,18 @@ class DashboardGUI:
             m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
         ]
 
+    def _normalize3(self, v):
+        n = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+        if n < 1e-6:
+            return [0.0, 0.0, 0.0]
+        return [v[0] / n, v[1] / n, v[2] / n]
+
     def _draw_orientation_panel(self, x0, y0, x1, y1):
         """Right panel: 3D sphere with axes rotated by IMU quaternion."""
         c = self.ball_canvas
         c.create_rectangle(x0, y0, x1, y1, outline=self.colors["panel_edge"], width=1)
         c.create_text(x0 + 8, y0 + 8, anchor="nw", fill=self.colors["muted"],
-                      font=("Segoe UI", 9), text="3D orientation (IMU)")
+                      font=("Segoe UI", 9), text="3D orientation (IMU, oblique view)")
 
         cx = (x0 + x1) * 0.5
         cy = (y0 + y1) * 0.55
@@ -493,6 +570,22 @@ class DashboardGUI:
         pole = self._mat_vec(rot, [0.0, 0.0, 1.0])
         px, py = proj(pole)
         c.create_oval(px - 5, py - 5, px + 5, py + 5, fill="#93c5fd", outline="")
+
+        if self.show_magnets_3d.get():
+            for idx, original in enumerate(self.model_magnet_positions):
+                body_vec = self._normalize3(original)
+                world_vec = self._mat_vec(rot, body_vec)
+                mx, my = proj(world_vec)
+
+                in_front = world_vec[2] >= 0.0
+                marker_color = "#f97316" if in_front else "#475569"
+                marker_r = 4 if in_front else 3
+                c.create_oval(mx - marker_r, my - marker_r, mx + marker_r, my + marker_r,
+                              fill=marker_color, outline="")
+
+                if self.show_magnet_ids_3d.get() and in_front:
+                    c.create_text(mx + 6, my - 6, text=str(idx + 1),
+                                  anchor="sw", fill="#fde68a", font=("Segoe UI", 8, "bold"))
 
     def set_magnet_display_mode(self, mode):
         """Switch between instant and graph magnet display modes."""
@@ -738,7 +831,7 @@ class DashboardGUI:
             (self.calibrate_btn, can_calibrate, {"padx": 10, "pady": 5}),
             (self.start_btn, can_start, {"padx": 10, "pady": 5}),
             (self.send_direction_btn, can_send_direction, {"padx": 10, "pady": 5}),
-            (self.emergency_btn, can_emergency, {"padx": 10, "pady": 10}),
+            (self.stop_btn, can_emergency, {"padx": 10, "pady": 10}),
             (self.ota_btn, can_flash, {"padx": 10, "pady": 5}),
         ]
 
@@ -802,12 +895,12 @@ class DashboardGUI:
             self.ball_velocity[0] = x * 0.5  # scaled velocity
             self.ball_velocity[1] = y * 0.5
 
-    def on_emergency_stop(self):
-        """Emergency stop button pressed - always allowed even if disconnected"""
-        self.dashboard.emergency_stop()
+    def on_stop_running(self):
+        """Stop running button pressed - always allowed even if disconnected"""
+        self.dashboard.stop_running()
         self.ball_velocity = [0.0, 0.0]
         self.ball_position = [0.0, 0.0]
-        self.update_status("EMERGENCY STOP sent")
+        self.update_status("Stop running sent")
 
     def on_ota_upload(self):
         """Open file dialog and upload firmware via OTA"""
@@ -918,11 +1011,13 @@ class DashboardGUI:
             ax, ay, az = telem.angular_velocity_xyz
             self.angular_velocity_xyz = [ax, ay, az]
 
-            # Estimate top-down linear velocity from angular velocity: v = w x r (r = +z).
-            vel_meas_x = ay
-            vel_meas_y = -ax
-            self.ball_vel_map[0] = 0.85 * self.ball_vel_map[0] + 0.15 * vel_meas_x
-            self.ball_vel_map[1] = 0.85 * self.ball_vel_map[1] + 0.15 * vel_meas_y
+            # Estimate top-down linear velocity from body-frame angular velocity and
+            # convert it to world frame for a true global map view.
+            vel_body = [ay, -ax, 0.0]
+            rot = self._quat_to_rot(self.orientation_wxyz)
+            vel_world = self._mat_vec(rot, vel_body)
+            self.ball_vel_map[0] = 0.85 * self.ball_vel_map[0] + 0.15 * vel_world[0]
+            self.ball_vel_map[1] = 0.85 * self.ball_vel_map[1] + 0.15 * vel_world[1]
 
             self.ball_pos_map[0] += self.ball_vel_map[0] * self.physics_dt
             self.ball_pos_map[1] += self.ball_vel_map[1] * self.physics_dt

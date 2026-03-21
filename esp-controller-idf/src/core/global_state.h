@@ -347,6 +347,7 @@ public:
     // helper functions to collect magnet info
     PWMAddress getPWMAddress(int magnetId) const;
     ADCAddress getADCAddress(int magnetId) const;
+    Vector3 getMagnetPosition(int magnetId) const;
 
     // getters and setters for the ideal direction
     Vector3 getIdealDirection() const;
