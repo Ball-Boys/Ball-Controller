@@ -135,12 +135,12 @@ class DashboardGUI:
                                            bg="#ffaa00", fg="black", width=20, height=2)
         self.send_direction_btn.pack(padx=10, pady=5)
         
-        # Emergency stop button (red)
-        self.emergency_btn = tk.Button(button_frame, text="EMERGENCY STOP", 
-                                       command=self.on_emergency_stop,
+        # Stop running button (red)
+        self.stop_btn = tk.Button(button_frame, text="STOP RUNNING", 
+                                       command=self.on_stop_running,
                                        font=("Arial", 14, "bold"), 
                                        bg="#ff0000", fg="white", width=20, height=2)
-        self.emergency_btn.pack(padx=10, pady=10)
+        self.stop_btn.pack(padx=10, pady=10)
         
         # OTA flash button
         self.ota_btn = tk.Button(button_frame, text="FLASH FIRMWARE (OTA)",
@@ -383,12 +383,12 @@ class DashboardGUI:
             self.ball_velocity[0] = x * 0.5  # scaled velocity
             self.ball_velocity[1] = y * 0.5
 
-    def on_emergency_stop(self):
-        """Emergency stop button pressed - always allowed even if disconnected"""
-        self.dashboard.emergency_stop()
+    def on_stop_running(self):
+        """Stop running button pressed - always allowed even if disconnected"""
+        self.dashboard.stop_running()
         self.ball_velocity = [0.0, 0.0]
         self.ball_position = [0.0, 0.0]
-        self.update_status("EMERGENCY STOP sent")
+        self.update_status("Stop running sent")
 
     def on_ota_upload(self):
         """Open file dialog and upload firmware via OTA"""

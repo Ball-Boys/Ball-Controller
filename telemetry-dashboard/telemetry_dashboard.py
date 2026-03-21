@@ -103,8 +103,8 @@ class BallControllerDashboard:
         """Send calibration command"""
         self._send_command(command_type=1)
     
-    def emergency_stop(self):
-        """Emergency stop the system"""
+    def stop_running(self):
+        """Stop running and return to standby"""
         self._send_command(command_type=2)
     
     def start_running(self):
