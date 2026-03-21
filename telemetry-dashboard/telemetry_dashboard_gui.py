@@ -318,8 +318,8 @@ class DashboardGUI:
                            relief="flat", highlightthickness=0)
         
         # Emergency stop button (red)
-        self.stop_btn = tk.Button(button_inner, text="EMERGENCY STOP", 
-                                       command=self.on_emergency_stop,
+        self.stop_btn = tk.Button(button_inner, text="STOP", 
+                                       command=self.on_stop_running,
                            font=("Segoe UI", 14, "bold"), 
                            bg=self.colors["danger"], fg="white", width=20, height=2,
                            activebackground="#fb7185", activeforeground="white",
@@ -831,7 +831,7 @@ class DashboardGUI:
             (self.calibrate_btn, can_calibrate, {"padx": 10, "pady": 5}),
             (self.start_btn, can_start, {"padx": 10, "pady": 5}),
             (self.send_direction_btn, can_send_direction, {"padx": 10, "pady": 5}),
-            (self.emergency_btn, can_emergency, {"padx": 10, "pady": 10}),
+            (self.stop_btn, can_emergency, {"padx": 10, "pady": 10}),
             (self.ota_btn, can_flash, {"padx": 10, "pady": 5}),
         ]
 
