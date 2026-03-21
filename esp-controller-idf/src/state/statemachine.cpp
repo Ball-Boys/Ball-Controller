@@ -112,6 +112,28 @@ private:
 // 3. State Implementations (The Meat)
 // ---------------------------------------------------------
 
+// Static task handles to avoid spawning duplicate UDP tasks across state transitions
+static TaskHandle_t s_udp_sender_handle = NULL;
+static TaskHandle_t s_udp_receiver_handle = NULL;
+
+static void ensure_udp_sender()
+{
+    if (s_udp_sender_handle == NULL)
+    {
+        xTaskCreate(udp_sender_task, "udp_sender", 8192, NULL, 4, &s_udp_sender_handle);
+        printf("Started UDP sender task\n");
+    }
+}
+
+static void ensure_udp_receiver()
+{
+    if (s_udp_receiver_handle == NULL)
+    {
+        xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, &s_udp_receiver_handle);
+        printf("Started UDP receiver task\n");
+    }
+}
+
 State *ConnectionState::execute()
 {
     printf("=== ConnectionState: Starting WiFi connection ===\n");
@@ -125,6 +147,10 @@ State *ConnectionState::execute()
     GlobalState &state = GlobalState::instance();
     state.setSystemState(GlobalState::SystemState::STANDBY);
 
+    // Start comms tasks early so the dashboard can detect the connection
+    ensure_udp_sender();
+    ensure_udp_receiver();
+
     return &StandbyState::getInstance();
 }
 
@@ -134,8 +160,9 @@ State *StandbyState::execute()
     GlobalState &state = GlobalState::instance();
     state.setSystemState(GlobalState::SystemState::STANDBY);
 
-    // Start UDP receiver task to listen for commands
-    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
+    // Ensure comms tasks are running (no-op if already started)
+    ensure_udp_sender();
+    ensure_udp_receiver();
 
     // Wait for calibration request from dashboard
     while (!state.getCalibrationRequested())
@@ -158,8 +185,9 @@ State *CalibrateState::execute()
     // Create calibration sequence
     CalibrationSequence calibration;
 
-    // Start UDP receiver task to listen for user input
-    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
+    // Ensure comms tasks are running (no-op if already started)
+    ensure_udp_sender();
+    ensure_udp_receiver();
 
     // Get the next magnet to fire
     int magnet_id = calibration.startCalibration();
@@ -253,13 +281,9 @@ State *RunningState::execute()
     xTaskCreatePinnedToCore(core1LoopTask, "Core1", 4096, NULL, 1, NULL, 1);
     printf("Started Core 1 control loop task\n");
 
-    // 2. Spawn telemetry sender task (Core 0, send at 10Hz to dashboard)
-    xTaskCreate(udp_sender_task, "udp_sender", 8192, NULL, 4, NULL);
-    printf("Started UDP sender task\n");
-
-    // 3. Spawn command receiver task (Core 0, listen for commands from dashboard)
-    xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, NULL);
-    printf("Started UDP receiver task\n");
+    // 2. Ensure comms tasks are running (no-op if already started)
+    ensure_udp_sender();
+    ensure_udp_receiver();
 
     // Main loop - check for calibration requests periodically
     while (true)
