@@ -399,6 +399,7 @@ private:
     bool startRequested = false;
 
     // Calibration input from dashboard
+    Orientation localAxisOffset = Orientation(0, 0, 0.7071, 0.7071);
     Vector3 calibrationInput = Vector3(0, 0, 0);
     bool calibrationInputAvailable = false;
 };

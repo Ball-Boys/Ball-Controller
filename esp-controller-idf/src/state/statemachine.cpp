@@ -241,7 +241,7 @@ void core1LoopTaskTest(void *param)
 {
     GlobalState& instance = GlobalState::instance();
     float current_value = 3.0f;
-    float current_value2 = 2.0f;
+    float current_value2 = 3.0f;
     while (true)
     {
         if (instance.isKilled())
@@ -250,13 +250,14 @@ void core1LoopTaskTest(void *param)
             break; // Exit the loop to end the task
         }
 
-        instance.setControl(ControlOutputs(1, current_value));
-        instance.setControl(ControlOutputs(5, current_value2));
+        instance.setControl(ControlOutputs(2, current_value));
+        instance.setControl(ControlOutputs(3, current_value2));
+        instance.setControl(ControlOutputs(4, current_value2));
         printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
-            current_value = 5.0f;
-            current_value2 = 5.0f;
+            current_value = 2.0f;
+            current_value2 = 2.0f;
         }
         else
         {
@@ -302,6 +303,9 @@ void core1LoopTask(void *param)
         // check IMU and get value
         IMUData imu_data = readIMU();
 
+
+
+
         for (const auto &angular_velocity : imu_data.angular_velocity)
         {
             instance.setAngularVelocity(angular_velocity);
@@ -310,11 +314,14 @@ void core1LoopTask(void *param)
         for (const auto &orientation : imu_data.orientation)
         {
             instance.setOrientation(orientation);
+            printf("Orientation: %f, %f, %f, %f", orientation.w, orientation.x, orientation.y, orientation.z);
         }
 
         // compute control outputs
-        ControlOutputs control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
-        instance.setControl(control_outputs);
+        std::vector<ControlOutputs> control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
+        for (auto& output: control_outputs) {
+            instance.setControl(control_outputs);
+        }
 
         const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
 
@@ -395,8 +402,8 @@ State *TestingState::execute()
 {
     // Run scripts through it. No state switching ever.
 
-    // test_imu();
-    test_1();
+    test_imu();
+    // test_1();
     // test_stress_20ms();
     // test_4();
     // test_5();

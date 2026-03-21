@@ -561,7 +561,7 @@ void init_imu() {
     i2c_device_config_t imu_cfg = {};
     imu_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     imu_cfg.device_address = BNO08X_I2C_ADDR;
-    imu_cfg.scl_speed_hz = I2C_CLOCK_HZ;
+    imu_cfg.scl_speed_hz = I2C_CLK_SRC_DEFAULT;
 
     esp_err_t err = i2c_master_bus_add_device(s_i2c_bus, &imu_cfg, &s_imu_device);
     if (err != ESP_OK) {
@@ -723,6 +723,6 @@ void init_peripherals(int adc_clock_speed_hz, int uart_baud_rate) {
     init_comms();
 
     serial_init(uart_baud_rate);
-    // init_imu();
+    init_imu();
     
 }

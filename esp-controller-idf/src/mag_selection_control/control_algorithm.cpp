@@ -15,13 +15,14 @@ BallController &getControllerInstance()
 // Compute control outputs using BallController solver
 // Takes orientation and target direction, returns control for one magnet
 // TODO: Update to return vector for dual magnet operation
-ControlOutputs computeControl(const std::vector<Orientation> orientation_history, const std::vector<AngularVelocity> angular_velocity_history, const Vector3 targetDirection)
+std::vector<ControlOutputs> computeControl(const std::vector<Orientation> orientation_history, const std::vector<AngularVelocity> angular_velocity_history, const Vector3 targetDirection)
 {
+    
 
     // Use the most recent orientation
     if (orientation_history.empty())
     {
-        return ControlOutputs::zero(0);
+        return {};
     }
 
     const Orientation &latest_orient = orientation_history.back();
@@ -36,10 +37,11 @@ ControlOutputs computeControl(const std::vector<Orientation> orientation_history
 
     // Return the first magnet command
     // TODO: Update GlobalState and statemachine to handle multiple magnet outputs
-    if (num_magnets > 0)
+    std::vector<ControlOutputs> controlOutputs;  
+    for (auto& output: outputs)
     {
-        return ControlOutputs(outputs[0].id, outputs[0].current);
+        controlOutputs.push_back(ControlOutputs(outputs[0].id, outputs[0].current));
     }
 
-    return ControlOutputs::zero(0);
+    return {};
 }
