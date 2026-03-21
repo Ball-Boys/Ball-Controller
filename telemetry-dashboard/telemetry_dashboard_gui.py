@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import threading
 import math
 from telemetry_dashboard import BallControllerDashboard
+from ota_upload import upload_firmware
 
 class DashboardGUI:
     def __init__(self, root):
@@ -140,6 +141,13 @@ class DashboardGUI:
                                        font=("Arial", 14, "bold"), 
                                        bg="#ff0000", fg="white", width=20, height=2)
         self.emergency_btn.pack(padx=10, pady=10)
+        
+        # OTA flash button
+        self.ota_btn = tk.Button(button_frame, text="FLASH FIRMWARE (OTA)",
+                                 command=self.on_ota_upload,
+                                 font=("Arial", 11, "bold"),
+                                 bg="#8800cc", fg="white", width=20, height=2)
+        self.ota_btn.pack(padx=10, pady=5)
         
         # Magnet currents frame
         magnet_frame = tk.LabelFrame(right_frame, text="Magnets", 
@@ -381,6 +389,49 @@ class DashboardGUI:
         self.ball_velocity = [0.0, 0.0]
         self.ball_position = [0.0, 0.0]
         self.update_status("EMERGENCY STOP sent")
+
+    def on_ota_upload(self):
+        """Open file dialog and upload firmware via OTA"""
+        if not self._check_connected("flash firmware"):
+            return
+
+        if self.system_state not in ("Standby", "Connection"):
+            messagebox.showwarning("Wrong State",
+                                   f"OTA flash is only safe in Standby state.\n"
+                                   f"Current state: {self.system_state}")
+            return
+
+        firmware_path = filedialog.askopenfilename(
+            title="Select firmware binary",
+            filetypes=[("Binary files", "*.bin"), ("All files", "*.*")],
+            initialdir=".."
+        )
+        if not firmware_path:
+            return
+
+        if not messagebox.askyesno("Confirm OTA Flash",
+                                    f"Flash firmware:\n{firmware_path}\n\n"
+                                    "The ESP32 will reboot after flashing.\nContinue?"):
+            return
+
+        self.ota_btn.config(state=tk.DISABLED, text="FLASHING...")
+        self.update_status("OTA upload in progress...")
+
+        def do_upload():
+            success = upload_firmware(firmware_path, self.dashboard.esp_ip)
+            self.root.after(0, lambda: self._ota_complete(success))
+
+        threading.Thread(target=do_upload, daemon=True).start()
+
+    def _ota_complete(self, success):
+        """Called on main thread when OTA upload finishes"""
+        self.ota_btn.config(state=tk.NORMAL, text="FLASH FIRMWARE (OTA)")
+        if success:
+            self.update_status("OTA flash successful! ESP32 is rebooting...")
+            messagebox.showinfo("OTA Success", "Firmware flashed successfully.\nESP32 is rebooting.")
+        else:
+            self.update_status("OTA flash failed")
+            messagebox.showerror("OTA Failed", "Firmware upload failed.\nCheck console for details.")
 
     def update_status(self, message):
         """Update status label"""

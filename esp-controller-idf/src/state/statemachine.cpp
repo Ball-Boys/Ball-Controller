@@ -6,6 +6,7 @@
 #include <esp_timer.h>
 #include <comms/wifi_client.h>
 #include <scripts/bench_test.h>
+#include <ota/ota_update.h>
 #include <utils/utils.h>
 
 #define SERIAL_BAUD_RATE 115200
@@ -116,6 +117,7 @@ private:
 // Static task handles to avoid spawning duplicate UDP tasks across state transitions
 static TaskHandle_t s_udp_sender_handle = NULL;
 static TaskHandle_t s_udp_receiver_handle = NULL;
+static bool s_ota_server_started = false;
 
 static void ensure_udp_sender()
 {
@@ -151,6 +153,13 @@ State *ConnectionState::execute()
     // Start comms tasks early so the dashboard can detect the connection
     ensure_udp_sender();
     ensure_udp_receiver();
+
+    // Start OTA HTTP server so firmware can be flashed via WiFi
+    if (!s_ota_server_started)
+    {
+        startOtaUpdateTask();
+        s_ota_server_started = true;
+    }
 
     return &StandbyState::getInstance();
 }
