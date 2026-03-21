@@ -250,7 +250,7 @@ void core1LoopTaskTest(void *param)
             break; // Exit the loop to end the task
         }
 
-        instance.setControl(ControlOutputs(2, current_value));
+        instance.setControl(ControlOutputs(6, current_value));
         instance.setControl(ControlOutputs(3, current_value2));
         instance.setControl(ControlOutputs(4, current_value2));
         printf("Setting Control to %f", current_value);
