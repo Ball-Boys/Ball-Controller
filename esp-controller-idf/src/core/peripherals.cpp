@@ -300,10 +300,11 @@ static i2c_master_dev_handle_t get_pwm_device(int driver_i2c_address) {
 }
 
 void pca9685_set_pwm(int driver_i2c_address, int channel, int value_0_255) {
-    printf("Setting PWM on I2C addr 0x%02X, channel %d to value %d\n", driver_i2c_address, channel, value_0_255);
     if (!s_i2c_initialized) {
         init_pwm_driver();
     }
+    // vTaskDelay(0.05);
+    printf("Setting PWM - I2C Addr: 0x%02X, Channel: %d, Value: %d\n", driver_i2c_address, channel, value_0_255);
 
     if (channel < 0 || channel > 15) {
         return;

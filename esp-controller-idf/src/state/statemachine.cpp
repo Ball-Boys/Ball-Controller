@@ -10,7 +10,7 @@
 #include <utils/utils.h>
 
 #define SERIAL_BAUD_RATE 115200
-#define I2C_CLOCK_HZ 1000000
+#define I2C_CLOCK_HZ 100000
 
 // Forward declarations
 class State;
@@ -239,8 +239,9 @@ State *CalibrateState::execute()
 
 void core1LoopTaskTest(void *param)
 {
-    GlobalState &instance = GlobalState::instance();
-    float current_value = 5.0f;
+    GlobalState& instance = GlobalState::instance();
+    float current_value = 3.0f;
+    float current_value2 = 2.0f;
     while (true)
     {
         if (instance.isKilled())
@@ -250,13 +251,16 @@ void core1LoopTaskTest(void *param)
         }
 
         instance.setControl(ControlOutputs(1, current_value));
+        instance.setControl(ControlOutputs(5, current_value2));
         printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
             current_value = 5.0f;
+            current_value2 = 5.0f;
         }
         else
         {
+            current_value2 = 0.0f;
             current_value = 0.0f;
         }
 
@@ -272,13 +276,14 @@ void core1LoopTaskTest(void *param)
         {
             fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
 
-            instance.currentControlLoop();
+            std::vector<CurrentInfo> currentInfo = instance.currentControlLoop();
 
             if (esp_timer_get_time() < fast_loop_end_us)
             {
                 vTaskDelay(pdMS_TO_TICKS(0.0001f)); // slight smoothing of operation here
             }
         }
+
     }
 }
 
@@ -391,7 +396,7 @@ State *TestingState::execute()
     // Run scripts through it. No state switching ever.
 
     // test_imu();
-    test_0();
+    test_1();
     // test_stress_20ms();
     // test_4();
     // test_5();
