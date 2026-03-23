@@ -6,7 +6,7 @@
 #include <freertos/task.h>
 
 CalibrationSequence::CalibrationSequence()
-    : controller(), num_calibration_steps(0)
+    : num_calibration_steps(0)
 {
 }
 
@@ -16,26 +16,27 @@ int CalibrationSequence::startCalibration()
     // For now, we'll get the orientation from global state
     GlobalState &state = GlobalState::instance();
     Orientation current_q = state.getOrientation();
-    Quaternion q(current_q.w, current_q.x, current_q.y, current_q.z);
 
-    current_magnet_id = controller.getCalibrationMagnet(q);
+    current_magnet_id = state.getCalibrationMagnet(current_q);
 
     printf("Calibration: Firing magnet %d\n", current_magnet_id);
 
     return current_magnet_id;
 }
 
-void CalibrationSequence::completeCalibrationStep(float joy_x, float joy_y, const Quaternion &q)
+void CalibrationSequence::completeCalibrationStep(float joy_x, float joy_y, const Orientation &q)
 {
     printf("Calibration result: User input (%.2f, %.2f)\n", joy_x, joy_y);
+    GlobalState &state = GlobalState::instance();
 
     // Finalize this calibration step with the user's joystick input
-    controller.finishCalibration(current_magnet_id, q, joy_x, joy_y);
+    state.finishCalibration(current_magnet_id, q, joy_x, joy_y);
 
     printf("Calibration complete.\n");
 }
 
 bool CalibrationSequence::isCalibrated() const
 {
-    return controller.isCalibrated() && num_calibration_steps >= MAX_CALIBRATION_STEPS;
+    GlobalState &state = GlobalState::instance();
+    return state.isCalibrated() && num_calibration_steps >= MAX_CALIBRATION_STEPS;
 }

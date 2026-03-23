@@ -239,6 +239,7 @@ State *CalibrateState::execute()
     // For now, just a placeholder
     printf("Firing magnet %d for calibration\n", magnet_id);
 
+
     // Wait for user input from dashboard (set_direction command)
     global.clearCalibrationInput();
     while (!global.getCalibrationInputAvailable())
@@ -251,10 +252,9 @@ State *CalibrateState::execute()
     global.clearCalibrationInput();
 
     Orientation current_q = global.getOrientation();
-    Quaternion q(current_q.w, current_q.x, current_q.y, current_q.z);
 
     // Complete this calibration step
-    calibration.completeCalibrationStep(user_input.x, user_input.y, q);
+    calibration.completeCalibrationStep(user_input.x, user_input.y, current_q);
 
     printf("Calibration finished, waiting for start command...\n");
 
@@ -367,7 +367,7 @@ void core1LoopTask(void *param)
         // compute control outputs
         std::vector<ControlOutputs> control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
         for (auto& output: control_outputs) {
-            instance.setControl(control_outputs);
+            instance.setControl(output);
         }
 
         const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
@@ -448,7 +448,8 @@ State *TestingState::execute()
 {
     // Run scripts through it. No state switching ever.
 
-    test_imu();
+    // test_imu();
+    test_control_solve();
     // test_1();
     // test_stress_20ms();
     // test_4();
@@ -485,6 +486,7 @@ void run_state_machine_connection()
 
 void run_state_machine_testing()
 {
+    init_peripherals(I2C_CLOCK_HZ, SERIAL_BAUD_RATE); // Ensure peripherals are initialized for testing
     StateMachine machine(&TestingState::getInstance());
     machine.run();
 }

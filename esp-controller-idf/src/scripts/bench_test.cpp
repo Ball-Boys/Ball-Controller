@@ -355,24 +355,62 @@ void test_5() {
     }
 }
 
+void test_control_solve() {
+    GlobalState& instance = GlobalState::instance();
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(100)); // Short delay to ensure system is ready
+        IMUData imu_data = readIMU();
+
+            if (imu_data.orientation.empty()) {
+                continue; // Skip if no orientation data is available
+            }
+            Orientation q = imu_data.orientation.back(); // Get latest orientation
+            instance.setOrientation(q);
+            
+
+        instance.solve(1, 0, q);
+    }
+}
+
 
 // ...existing code...
 
 void test_imu() {
     printf("\nStarting IMU test\n");
 
+    int i = 0;
+
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+        vTaskDelay(pdMS_TO_TICKS(10)); // Delay to maintain 100 Hz loop
+
         // Poll IMU once per cycle (10 ms)
         IMUData data = readIMU(); // Ensure we process incoming IMU data
+        GlobalState& instance = GlobalState::instance();
 
-
-        std::vector<Orientation> orientations = data.orientation;
-        std::vector<AngularVelocity> angularVelocity = data.angular_velocity;
-        for (auto& orientation: orientations) {
-            printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", orientation.w, orientation.x, orientation.y, orientation.z);
+        if (data.orientation.empty()) {
+            continue; // Skip if no orientation data is available
         }
+        Orientation q = data.orientation.back(); // Get latest orientation
+        // printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", q.w, q.x, q.y, q.z);
+
+        instance.setOrientation(q);
+
+        i++;
+
+
+        if (i % 50 == 0) {
+        
+        for (int i = 1; i <= 20; ++i) {
+            Vector3 position = instance.getMagnetPosition(i).transform(q);
+            printf("Magnet %d Position: x=%.2f y=%.2f z=%.2f\n", i, position.x, position.y, position.z);
+            // printf("Orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", orientations[i].w, orientations[i].x, orientations[i].y, orientations[i].z);
+            break;
+        }
+    }
         // printf("Angular Velocity: x=%.3f y=%.3f z=%.3f\n", instance.getAngularVelocity().x, instance.getAngularVelocity().y, instance.getAngularVelocity().z);
+
+        
 
         
     }
