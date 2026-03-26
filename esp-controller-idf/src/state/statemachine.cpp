@@ -274,10 +274,22 @@ void core1LoopTaskTest(void *param)
 {
     (void)param;
     GlobalState& instance = GlobalState::instance();
-    float current_value = 2.0f;
-    float current_value2 = 2.0f;
+    float current_value = 0.0f;
+    float current_value2 = 0.0f;
+    int magChangeCounter = 11;
+    bool magChangeFlag = false;
     while (true)
     {
+        if (magChangeFlag == true) {
+            magChangeCounter += 1;
+            if (magChangeCounter > 20) {
+                magChangeCounter = 11;
+            }
+            magChangeFlag = false;
+        }
+        else {
+            magChangeFlag = true;
+        }
         if (instance.isKilled())
         {
             // Reset the kill flag for the next run
@@ -285,13 +297,13 @@ void core1LoopTaskTest(void *param)
         }
 
         // instance.setControl(ControlOutputs(2, current_value));
-        instance.setControl(ControlOutputs(6, current_value2));
+        instance.setControl(ControlOutputs(magChangeCounter, current_value2));
+        instance.setControl(ControlOutputs(magChangeCounter-1, current_value2));
         // instance.setControl(ControlOutputs(5, current_value2));
-        printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
-            current_value = 2.0f;
-            current_value2 = 2.0f;
+            current_value = 5.0f;
+            current_value2 = 5.0f;
         }
         else
         {
