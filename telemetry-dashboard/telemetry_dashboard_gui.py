@@ -95,6 +95,7 @@ class DashboardGUI:
         self.magnet_setpoints = [0.0] * 20
         self.magnet_history = [[] for _ in range(20)]
         self.magnet_setpoint_history = [[] for _ in range(20)]
+        self.last_magnet_sample_timestamps = [0] * 20
         self.magnet_display_mode = "instant"
         self.magnet_grid_padding = 8
         self.magnet_grid_cols = 5
@@ -601,6 +602,29 @@ class DashboardGUI:
     def _clamp_amps(self, value):
         return max(0.0, min(self.magnet_scale_max_amps, float(value)))
 
+    def _extract_valid_current_samples(self, telemetry, magnet_index):
+        """Return sorted (timestamp_ms, current_amp) pairs with valid timestamps."""
+        values = telemetry.magnet_current_values[magnet_index]
+        timesteps = telemetry.magnet_current_timestep[magnet_index]
+        valid_samples = []
+        for sample_value, sample_time in zip(values, timesteps):
+            if sample_time > 0:
+                valid_samples.append((sample_time, self._clamp_amps(sample_value)))
+        valid_samples.sort(key=lambda item: item[0])
+        return valid_samples
+
+    def _latest_current_for_magnet(self, telemetry, magnet_index):
+        samples = self._extract_valid_current_samples(telemetry, magnet_index)
+        if not samples:
+            return 0.0
+        return samples[-1][1]
+
+    def _reset_magnet_histories(self):
+        """Clear cached graph state when packet timestamps reset (reboot/wrap)."""
+        self.magnet_history = [[] for _ in range(20)]
+        self.magnet_setpoint_history = [[] for _ in range(20)]
+        self.last_magnet_sample_timestamps = [0] * 20
+
     def draw_magnet_grid(self):
         """Draw the 5x2 magnet grid using the current display mode."""
         canvas = self.magnet_canvas
@@ -720,20 +744,31 @@ class DashboardGUI:
 
     def _refresh_magnet_history(self, telemetry):
         """Store the latest current history for graph mode."""
-        latest_timestamp = telemetry.timestamp
+        latest_packet_timestamp = telemetry.timestamp
         for magnet_index in range(20):
-            row = telemetry.magnet_current_values[magnet_index]
-            if row:
-                history = self.magnet_history[magnet_index]
-                for sample in row:
-                    history.append((latest_timestamp, self._clamp_amps(sample)))
-                cutoff = latest_timestamp - 4000
-                while history and history[0][0] < cutoff:
-                    history.pop(0)
+            history = self.magnet_history[magnet_index]
+            current_samples = self._extract_valid_current_samples(telemetry, magnet_index)
+
+            last_sample_time = self.last_magnet_sample_timestamps[magnet_index]
+            if current_samples and last_sample_time and current_samples[-1][0] < last_sample_time:
+                history.clear()
+                self.magnet_setpoint_history[magnet_index].clear()
+                last_sample_time = 0
+
+            for sample_time, sample_value in current_samples:
+                if sample_time > last_sample_time:
+                    history.append((sample_time, sample_value))
+                    last_sample_time = sample_time
+
+            self.last_magnet_sample_timestamps[magnet_index] = last_sample_time
+
+            cutoff = max(0, last_sample_time - 4000)
+            while history and history[0][0] < cutoff:
+                history.pop(0)
 
             setpoint_history = self.magnet_setpoint_history[magnet_index]
-            setpoint_history.append((latest_timestamp, self._clamp_amps(telemetry.magnet_setpoints[magnet_index])))
-            cutoff = latest_timestamp - 4000
+            setpoint_history.append((latest_packet_timestamp, self._clamp_amps(telemetry.magnet_setpoints[magnet_index])))
+            cutoff = max(0, latest_packet_timestamp - 4000)
             while setpoint_history and setpoint_history[0][0] < cutoff:
                 setpoint_history.pop(0)
     
@@ -980,6 +1015,10 @@ class DashboardGUI:
         if self.dashboard.latest_telemetry and connected:
             telem = self.dashboard.latest_telemetry
 
+            previous_timestamp = getattr(self, "latest_telemetry_timestamp", None)
+            if previous_timestamp is not None and telem.timestamp < previous_timestamp:
+                self._reset_magnet_histories()
+
             # Update state from ESP telemetry (authoritative source)
             state_map = {
                 0: "Connection",
@@ -990,9 +1029,8 @@ class DashboardGUI:
             }
             self.system_state = state_map.get(telem.system_state, "Unknown")
 
-            # update magnet data from latest values
-            # magnet_current_values is 20x100, use most recent value from each row
-            current_snapshot = [row[-1] if row else 0.0 for row in telem.magnet_current_values]
+            # Use the newest timestamped sample per magnet (ignore zero-filled unused slots).
+            current_snapshot = [self._latest_current_for_magnet(telem, magnet_index) for magnet_index in range(20)]
             self.magnet_currents = current_snapshot
 
             # Update setpoints directly from telemetry
