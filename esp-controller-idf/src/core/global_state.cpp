@@ -10,19 +10,22 @@
 
 GlobalState &GlobalState::instance()
 {
-    static GlobalState singleton(MAGNET_CONFIG);
+    static GlobalState singleton(MAGNET_CONFIG, LOCAL_OFFSET);
     return singleton;
 }
 
-GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config)
-    : magnetList(MagnetList::fromConfig(config, fastLoopTime)),
+GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config, Orientation local_offset)
+    : magnetList(MagnetList::fromConfig(config, fastLoopTime, local_offset)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
-      idealDirection(0.0f, 0.0f, 0.0f)
+      // TODO: Make it so it defaults to 1.0, 0.0, 0.0
+      idealDirection(1.0f, 0.0f, 0.0f)
 {
     orientationHistory.reserve(kMaxOrientationHistorySize);
     angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
     killedMutex = xSemaphoreCreateMutex();
     stateMutex = xSemaphoreCreateMutex();
+    initLUT();
+    
 }
 
 // ============= Orientation methods =============
@@ -172,10 +175,6 @@ ControlOutputs GlobalState::getLatestControl(int magnetId) const
 
 void GlobalState::setControl(const ControlOutputs &value)
 {
-    // Treat magnetId == 0 as a no-op (represents "no magnet") to avoid exceptions
-    if (value.magnetId == 0) {
-        return;
-    }
     auto it = magnetList.magnets.find(value.magnetId);
     if (it == magnetList.magnets.end())
     {
@@ -386,7 +385,8 @@ Vector3 GlobalState::getIdealDirection() const
 
 void GlobalState::setIdealDirection(const Vector3 &value)
 {
-    idealDirection = value;
+    // TODO: remiplement this so we can actually set the ideal direction.
+    // idealDirection = value;
 }
 
 void GlobalState::set_kill(bool value)
@@ -552,4 +552,288 @@ void GlobalState::clearCalibrationInput()
     xSemaphoreTake(stateMutex, portMAX_DELAY);
     calibrationInputAvailable = false;
     xSemaphoreGive(stateMutex);
+}
+
+
+
+void GlobalState::initLUT()
+{
+    float max_angle = 1.570796f; // pi/2
+
+    for (int i = 0; i < LUT_SIZE; i++)
+    {
+        float angle = ((float)i / (LUT_SIZE - 1)) * max_angle;
+
+        if (angle < 0.1f)
+        {
+            torque_lut[i] = 0.0f;
+        }
+        else
+        {
+            float num = 60.0f * sinf(angle);
+            float den = 0.01f + 1.0f - cosf(angle);
+            float val = (num / den) * expf(-2.5f * angle);
+            float val_per_amp = val / 8.0f;
+            torque_lut[i] = (val_per_amp > 0.0f) ? val_per_amp : 0.0f;
+        }
+    }
+}
+
+
+Matrix3 GlobalState::quatToMatrix(const Orientation &q)
+{
+    Matrix3 mat;
+    float xx = q.x * q.x;
+    float yy = q.y * q.y;
+    float zz = q.z * q.z;
+    float xy = q.x * q.y;
+    float xz = q.x * q.z;
+    float yz = q.y * q.z;
+    float wx = q.w * q.x;
+    float wy = q.w * q.y;
+    float wz = q.w * q.z;
+
+    mat.m[0][0] = 1.0f - 2.0f * (yy + zz);
+    mat.m[0][1] = 2.0f * (xy - wz);
+    mat.m[0][2] = 2.0f * (xz + wy);
+
+    mat.m[1][0] = 2.0f * (xy + wz);
+    mat.m[1][1] = 1.0f - 2.0f * (xx + zz);
+    mat.m[1][2] = 2.0f * (yz - wx);
+
+    mat.m[2][0] = 2.0f * (xz - wy);
+    mat.m[2][1] = 2.0f * (yz + wx);
+    mat.m[2][2] = 1.0f - 2.0f * (xx + yy);
+    return mat;
+}
+
+float GlobalState::getTorqueFactor(float angle_rad)
+{
+    float max_angle = 1.570796f; // pi/2
+
+    if (angle_rad >= max_angle)
+        return 0.0f;
+    if (angle_rad < 0.1f)
+        return 0.0f;
+
+    // 1. Map the angle to a floating-point index (0 to 127)
+    float index_float = (angle_rad / max_angle) * (LUT_SIZE - 1);
+
+    // 2. Get the integer index below the target
+    int idx = (int)index_float;
+
+    // Safety bound
+    if (idx >= LUT_SIZE - 1)
+        return torque_lut[LUT_SIZE - 1];
+
+    // 3. Linear Interpolation (mix the two closest array values)
+    float fraction = index_float - idx;
+    float val1 = torque_lut[idx];
+    float val2 = torque_lut[idx + 1];
+
+    return val1 * (1.0f - fraction) + val2 * fraction;
+}
+
+
+struct Candidate
+{
+    int id;
+    Vector3 vec;
+};
+
+std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const Orientation &q)
+{
+    std::vector<ControlOutputs> output;
+    // 1. Apply Yaw Offset to Joystick Input
+    float target_mag = sqrtf(joy_x * joy_x + joy_y * joy_y);
+    if (target_mag < 0.001f)
+        return output; // Deadzone
+
+    float theta_joy = atan2f(joy_y, joy_x);
+    float theta_imu = theta_joy + yaw_offset; // Apply calibration
+
+    Vector3 desired_force_world(cosf(theta_imu) * target_mag, sinf(theta_imu) * target_mag, 0.0f);
+
+    // 2. Coordinate Transforms
+    
+    Vector3 target_force_body = desired_force_world;
+    Vector3 gravity_ball = Vector3(0, 0, -1.0f);
+
+    // 3. Find Candidates
+    Candidate candidates[20];
+    int num_candidates = 0;
+
+    for (int i = 1; i <= 20; i++)
+    {
+        Vector3 mag_pos = getMagnetPosition(i).transform(q).normalized();
+        float dot_g = mag_pos.dot(gravity_ball);
+        float dot_clamp = fmaxf(-1.0f, fminf(1.0f, dot_g));
+        float angle = acosf(dot_clamp);
+
+        float strength = getTorqueFactor(angle);
+
+        if (i == 1 || i == 6)
+        {
+            printf("Magnet %d | Pos: (%f, %f, %f) | DotG: %f | Angle: %f | Strength: %f\n", i, mag_pos.x, mag_pos.y, mag_pos.z, dot_g, angle, strength);
+        }
+        if (strength <= 0.00001f)
+            continue;
+
+        Vector3 proj_component = mag_pos - (gravity_ball * dot_g);
+        if (proj_component.norm() < 0.01f)
+            continue;
+
+        Vector3 force_dir = proj_component.normalized();
+        Vector3 force_vec = force_dir * strength;
+
+        candidates[num_candidates].id = i;
+        candidates[num_candidates].vec = force_vec;
+        num_candidates++;
+    }
+
+
+    // 4. Optimization Search
+    float min_score = 1e9f; // Infinity
+    int best_count = 0;
+
+    // A. Single Magnets
+    for (int i = 0; i < num_candidates; i++)
+    {
+        float mag_len_sq = candidates[i].vec.dot(candidates[i].vec);
+        float projection = candidates[i].vec.dot(target_force_body);
+        if (projection <= 0)
+            continue;
+
+        float current = projection / mag_len_sq;
+        if (current > max_current)
+            current = max_current;
+
+        Vector3 produced = candidates[i].vec * current;
+        float error_dist = (target_force_body - produced).norm();
+        float score = error_dist + (current_penalty * current);
+
+        if (score < min_score)
+        {
+            min_score = score;
+            output.clear();
+            output.push_back(ControlOutputs(candidates[i].id, current));
+            best_count = 1;
+        }
+    }
+
+
+
+    // B. Pairs
+    float t_len = target_force_body.norm();
+    if (t_len > 0.001f)
+    {
+        Vector3 t_hat = target_force_body / t_len;
+        Vector3 ref = (fabsf(t_hat.z) < 0.9f) ? Vector3(0, 0, 1) : Vector3(0, 1, 0);
+        Vector3 y_hat = ref.cross(t_hat).normalized();
+
+        for (int i = 0; i < num_candidates; i++)
+        {
+            for (int j = i + 1; j < num_candidates; j++)
+            {
+                float Ax = candidates[i].vec.dot(t_hat);
+                float Ay = candidates[i].vec.dot(y_hat);
+                float Bx = candidates[j].vec.dot(t_hat);
+                float By = candidates[j].vec.dot(y_hat);
+
+                float det = (Ax * By) - (Ay * Bx);
+                if (fabsf(det) < 0.0001f)
+                    continue;
+
+                float Ia = (t_len * By) / det;
+                float Ib = -(t_len * Ay) / det;
+
+                if (Ia >= 0 && Ib >= 0)
+                {
+                    if (Ia > max_current)
+                        Ia = max_current;
+                    if (Ib > max_current)
+                        Ib = max_current;
+
+                    Vector3 produced = (candidates[i].vec * Ia) + (candidates[j].vec * Ib);
+                    float error_dist = (target_force_body - produced).norm();
+                    float score = error_dist + (current_penalty * (Ia + Ib));
+
+                    if (score < min_score - 0.0001f)
+                    {
+                        min_score = score;
+                    
+                        output.clear();
+                        output.push_back(ControlOutputs(candidates[i].id, Ia));
+                        output.push_back(ControlOutputs(candidates[j].id, Ib));
+                        best_count = 2;
+                    }
+                }
+            }
+        }
+    }
+
+    // printf("Best Score: %f | Count: %d\n", min_score, best_count);
+    for (const auto &ctrl : output)
+    {
+        printf("Output Magnet %d | Current: %f\n", ctrl.magnetId, ctrl.current_value);
+    }
+
+    return output;
+}
+
+// ---------------------------------------------------------
+// CALIBRATION LOGIC
+// ---------------------------------------------------------
+
+int GlobalState::getCalibrationMagnet(const Orientation &q)
+{
+    Matrix3 R = quatToMatrix(q);
+    Vector3 gravity_ball = R.multiplyTranspose(Vector3(0, 0, -1.0f));
+
+    int best_id = -1;
+    float max_strength = -1.0f;
+
+    for (int i = 1; i <= 20; i++)
+    {
+        float dot_g = getMagnetPosition(i).dot(gravity_ball);
+        float dot_clamp = fmaxf(-1.0f, fminf(1.0f, dot_g));
+        float angle = acosf(dot_clamp);
+
+        // Find the magnet that has the absolute highest pull strength
+        float strength = getTorqueFactor(angle);
+        if (strength > max_strength)
+        {
+            max_strength = strength;
+            best_id = i;
+        }
+    }
+    return best_id;
+}
+
+void GlobalState::finishCalibration(int fired_magnet_id, const Orientation &q, float joy_x, float joy_y)
+{
+    if (fired_magnet_id <= 0 || fired_magnet_id > 20)
+        return;
+
+    Matrix3 R = quatToMatrix(q);
+    // ASK LEVI, I feel like assuming this could be problematic.
+    Vector3 gravity_ball = R.multiplyTranspose(Vector3(0, 0, -1.0f));
+
+    // 1. Calculate the theoretical force vector of the fired magnet
+    float dot_g = getMagnetPosition(fired_magnet_id).dot(gravity_ball);
+    Vector3 proj_component = getMagnetPosition(fired_magnet_id) - (gravity_ball * dot_g);
+    Vector3 force_dir_body = proj_component.normalized();
+
+    // Convert to IMU World Frame
+    Vector3 force_dir_world = R.multiply(force_dir_body);
+
+    // 2. Determine IMU angle
+    float theta_imu = atan2f(force_dir_world.y, force_dir_world.x);
+
+    // 3. Determine User Joystick angle
+    float theta_joy = atan2f(joy_y, joy_x);
+
+    // 4. Store Offset
+    yaw_offset = theta_imu - theta_joy;
+    is_calibrated = true;
 }

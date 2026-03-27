@@ -6,7 +6,6 @@
 class CalibrationSequence
 {
 private:
-    BallController controller;
     int current_magnet_id = -1;
     int num_calibration_steps = 0;
     static const int MAX_CALIBRATION_STEPS = 3; // Number of calibration points
@@ -19,7 +18,7 @@ public:
     int startCalibration();
 
     // Call this after dashboard sends joystick input to confirm magnet direction
-    void completeCalibrationStep(float joy_x, float joy_y, const Quaternion &q);
+    void completeCalibrationStep(float joy_x, float joy_y, const Orientation &q);
 
     // Check if all calibration steps are done
     bool isCalibrated() const;

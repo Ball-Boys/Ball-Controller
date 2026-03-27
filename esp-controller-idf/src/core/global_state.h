@@ -9,6 +9,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <cmath>
+#include "../control/BallController.h"
 
 struct Orientation
 {
@@ -18,6 +19,33 @@ struct Orientation
     float z;
 
     Orientation(float w, float x, float y, float z) : w(w), x(x), y(y), z(z) {}
+
+    Orientation conjugate() const {
+        return {w, -x, -y, -z};
+    }
+
+    // 2. The Squared Norm (||q||^2)
+    float normSquared() const {
+        return w*w + x*x + y*y + z*z;
+    }
+
+    // Quaternion Multiplication (Hamilton Product)
+    Orientation operator*(const Orientation& q) const {
+        return {
+            w * q.w - x * q.x - y * q.y - z * q.z,
+            w * q.x + x * q.w + y * q.z - z * q.y,
+            w * q.y - x * q.z + y * q.w + z * q.x,
+            w * q.z + x * q.y - y * q.x + z * q.w
+        };
+    }
+
+    // 3. The Inverse (q^-1 = q* / ||q||^2)
+    Orientation inverse() const {
+        float n2 = normSquared();
+        if (n2 == 0) return {0, 0, 0, 0}; // Avoid division by zero
+        Orientation conj = conjugate();
+        return {conj.w / n2, conj.x / n2, conj.y / n2, conj.z / n2};
+    }
 };
 
 struct AngularVelocity
@@ -75,6 +103,13 @@ struct Vector3
     {
         float n = norm();
         return (n > 0.0001f) ? (*this / n) : Vector3(0, 0, 0);
+    }
+
+    Vector3 transform(Orientation q) const {
+        Orientation qprime = q.conjugate();
+        Orientation v_quat(0, x, y, z);
+        Orientation rotated = q * v_quat * qprime;
+        return Vector3(rotated.x, rotated.y, rotated.z);
     }
 };
 
@@ -252,20 +287,26 @@ struct MagnetList
     MagnetList() = default;
     MagnetList(std::unordered_map<int, MagnetInfo> mags) : magnets(mags) {}
 
-    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount> &config, float dt)
+    static MagnetList fromConfig(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, kMagnetCount> &config, float dt, Orientation local_offset)
     {
         std::unordered_map<int, MagnetInfo> magnets;
+        printf("Loading magnet configuration...\n");
         for (const auto &item : config)
         {
             int id = std::get<0>(item);
             const Vector3 &pos = std::get<1>(item);
+            // TODELETE
+            printf("Magnet %d position: (%f, %f, %f)\n", id, pos.x, pos.y, pos.z);
             const ADCAddress &adcAddr = std::get<2>(item);
             const PWMAddress &pwmAddr = std::get<3>(item);
             if (id <= 0 || id > static_cast<int>(kMagnetCount))
             {
                 throw std::out_of_range("Magnet ID out of range in configuration");
             }
-            magnets.emplace(id, MagnetInfo(id, pos, dt, adcAddr, pwmAddr));
+            Vector3 transformed_pos = pos.transform(local_offset);
+            // TODELETE
+            printf("Magnet %d transformed position: (%f, %f, %f)\n", id, transformed_pos.x, transformed_pos.y, transformed_pos.z);
+            magnets.emplace(id, MagnetInfo(id, transformed_pos, dt, adcAddr, pwmAddr));
         }
         return MagnetList{magnets};
     }
@@ -287,6 +328,27 @@ struct MagnetList
             throw std::out_of_range("Magnet ID not found: " + std::to_string(id));
         }
         return it->second;
+    }
+};
+
+
+struct Matrix3
+{
+    float m[3][3];
+    Vector3 multiply(const Vector3 &v) const
+    {
+        return Vector3(
+            m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
+            m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
+            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z);
+    }
+    // Multiply by Transpose (Inverse for rotation matrices)
+    Vector3 multiplyTranspose(const Vector3 &v) const
+    {
+        return Vector3(
+            m[0][0] * v.x + m[1][0] * v.y + m[2][0] * v.z,
+            m[0][1] * v.x + m[1][1] * v.y + m[2][1] * v.z,
+            m[0][2] * v.x + m[1][2] * v.y + m[2][2] * v.z);
     }
 };
 
@@ -375,8 +437,25 @@ public:
     void setCalibrationInput(const Vector3 &direction);
     void clearCalibrationInput();
 
+
+    // 1. Regular Operation
+    // Takes user joystick vector (x, y) and IMU quaternion. Returns number of active magnets.
+    std::vector<ControlOutputs> solve(float joy_x, float joy_y, const Orientation &q);
+
+    // 2. Calibration Phase Methods
+    // Step A: Find best magnet to fire, returns its ID.
+    int getCalibrationMagnet(const Orientation &q);
+
+    // Step B: Call this after user pushes joystick in response to the fired magnet
+    void finishCalibration(int fired_magnet_id, const Orientation &q, float joy_x, float joy_y);
+
+    bool isCalibrated() const { return is_calibrated; };
+
+    
+
 private:
-    GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config);
+
+    GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config, Orientation local_offset);
     GlobalState(const GlobalState &) = delete;
     GlobalState &operator=(const GlobalState &) = delete;
 
@@ -384,7 +463,7 @@ private:
     Orientation offset;
     std::vector<Orientation> orientationHistory;
     std::vector<AngularVelocity> angularVelocityHistory;
-    Vector3 idealDirection;
+    Vector3 idealDirection = Vector3(1.0f, 0.0f, 0.0f);
     std::vector<int> currentControlledMagnetIds;
     std::set<int> isMagnetRunning = {};
 
@@ -403,4 +482,20 @@ private:
     Orientation localAxisOffset = Orientation(0, 0, 0.7071, 0.7071);
     Vector3 calibrationInput = Vector3(0, 0, 0);
     bool calibrationInputAvailable = false;
+
+
+    float max_current = 8.0f;
+    float current_penalty = 2.0f;
+
+    // Calibration State
+    float yaw_offset = 0.0f;
+    bool is_calibrated = false;
+
+    static const int LUT_SIZE = 128;
+    float torque_lut[LUT_SIZE];
+    void initLUT();
+
+    void initMagnets();
+    Matrix3 quatToMatrix(const Orientation &q);
+    float getTorqueFactor(float angle_rad);
 };
