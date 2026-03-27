@@ -77,6 +77,18 @@ void setPWMOutputs(std::vector<int> magnetIds, std::vector<int> values) {
 
 }
 
+void zeroPWMs() {
+    GlobalState& state = GlobalState::instance();
+    for (int i = 1; i <= 20; ++i) {
+        PWMAddress pwmAddress = state.getPWMAddress(i);
+
+        int duty_cycle_0 = 0;
+
+        pca9685_set_pwm(pwmAddress.driver_i2c_address, pwmAddress.channel, duty_cycle_0);
+        vTaskDelay(pdTICKS_TO_MS(0.01));
+    }
+}
+
 
 
 void serial_print(const char* msg) {

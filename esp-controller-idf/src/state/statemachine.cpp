@@ -8,6 +8,8 @@
 #include <scripts/bench_test.h>
 #include <ota/ota_update.h>
 #include <utils/utils.h>
+#include <cstdlib>
+#include <stdexcept>
 
 #define SERIAL_BAUD_RATE 115200
 #define I2C_CLOCK_HZ 100000
@@ -19,6 +21,7 @@ class StandbyState;
 class CalibrateState;
 class RunningState;
 class TestingState;
+void core1LoopTaskTest(void *param);
 
 // ---------------------------------------------------------
 // 1. Base State Interface
@@ -117,6 +120,7 @@ private:
 // Static task handles to avoid spawning duplicate UDP tasks across state transitions
 static TaskHandle_t s_udp_sender_handle = NULL;
 static TaskHandle_t s_udp_receiver_handle = NULL;
+static TaskHandle_t s_control_loop_handle = NULL;
 static bool s_ota_server_started = false;
 
 static void ensure_udp_sender()
@@ -135,6 +139,35 @@ static void ensure_udp_receiver()
         xTaskCreate(udp_receiver_task, "udp_receiver", 8192, NULL, 4, &s_udp_receiver_handle);
         printf("Started UDP receiver task\n");
     }
+}
+
+static void ensure_single_control_loop_task()
+{
+    if (s_control_loop_handle != NULL)
+    {
+        const eTaskState task_state = eTaskGetState(s_control_loop_handle);
+        if (task_state != eDeleted) {
+            throw std::runtime_error("Attempted to start a second control loop task");
+        }
+
+        s_control_loop_handle = NULL;
+    }
+
+    const BaseType_t create_result = xTaskCreatePinnedToCore(
+        core1LoopTaskTest,
+        "Core1",
+        4096,
+        NULL,
+        1,
+        &s_control_loop_handle,
+        1);
+
+    if ((create_result != pdPASS) || (s_control_loop_handle == NULL))
+    {
+        throw std::runtime_error("Failed to create control loop task");
+    }
+
+    printf("Started Core 1 control loop task\n");
 }
 
 State *ConnectionState::execute()
@@ -239,9 +272,10 @@ State *CalibrateState::execute()
 
 void core1LoopTaskTest(void *param)
 {
+    (void)param;
     GlobalState& instance = GlobalState::instance();
-    float current_value = 3.0f;
-    float current_value2 = 3.0f;
+    float current_value = 2.0f;
+    float current_value2 = 2.0f;
     while (true)
     {
         if (instance.isKilled())
@@ -250,9 +284,9 @@ void core1LoopTaskTest(void *param)
             break; // Exit the loop to end the task
         }
 
-        instance.setControl(ControlOutputs(6, current_value));
-        instance.setControl(ControlOutputs(3, current_value2));
-        instance.setControl(ControlOutputs(4, current_value2));
+        // instance.setControl(ControlOutputs(2, current_value));
+        instance.setControl(ControlOutputs(6, current_value2));
+        // instance.setControl(ControlOutputs(5, current_value2));
         printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
@@ -272,9 +306,16 @@ void core1LoopTaskTest(void *param)
 
         const int64_t end_us = esp_timer_get_time() + slow_loop_time_us;
         int64_t fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
+        int i = 0;
 
         while (esp_timer_get_time() < end_us)
         {
+            i += 1;
+            if (i % 10 == 0) {
+                if (instance.isKilled()) {
+                    break;
+                }
+            }
             fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
 
             std::vector<CurrentInfo> currentInfo = instance.currentControlLoop();
@@ -283,9 +324,20 @@ void core1LoopTaskTest(void *param)
             {
                 vTaskDelay(pdMS_TO_TICKS(0.0001f)); // slight smoothing of operation here
             }
+            
         }
 
     }
+
+    zeroPWMs(); // Ensure all outputs are zeroed when stopping
+    instance.set_kill(false); // Reset kill flag for next run
+
+    if (s_control_loop_handle == xTaskGetCurrentTaskHandle())
+    {
+        s_control_loop_handle = NULL;
+    }
+
+    vTaskDelete(NULL);
 }
 
 void core1LoopTask(void *param)
@@ -295,16 +347,12 @@ void core1LoopTask(void *param)
 
     while (true)
     {
-        if (instance.isKilled())
-        {
+        if (instance.isKilled()) {
             // Reset the kill flag for the next run
             break; // Exit the loop to end the task
         }
         // check IMU and get value
         IMUData imu_data = readIMU();
-
-
-
 
         for (const auto &angular_velocity : imu_data.angular_velocity)
         {
@@ -314,7 +362,6 @@ void core1LoopTask(void *param)
         for (const auto &orientation : imu_data.orientation)
         {
             instance.setOrientation(orientation);
-            printf("Orientation: %f, %f, %f, %f", orientation.w, orientation.x, orientation.y, orientation.z);
         }
 
         // compute control outputs
@@ -343,6 +390,9 @@ void core1LoopTask(void *param)
             }
         }
     }
+    zeroPWMs();
+
+    instance.set_kill(false); // Reset kill flag for next run
 
     // TODO: implement cleanup logic here (e.g. set all PWM outputs to 0)
 
@@ -356,8 +406,7 @@ State *RunningState::execute()
     state.setSystemState(GlobalState::SystemState::RUNNING);
 
     // 1. Spawn Core 1 Task for the 10ms control loop
-    xTaskCreatePinnedToCore(core1LoopTaskTest, "Core1", 4096, NULL, 1, NULL, 1);
-    printf("Started Core 1 control loop task\n");
+    ensure_single_control_loop_task();
 
     // 2. Ensure comms tasks are running (no-op if already started)
     ensure_udp_sender();
@@ -370,10 +419,8 @@ State *RunningState::execute()
         if (state.isKilled())
         {
             printf("Stop requested, stopping control loop\n");
-            vTaskDelay(pdMS_TO_TICKS(500)); // Wait for control task to exit
-            state.set_kill(false);
             state.zeroControl();
-            printf("Returning to StandbyState\n");
+            
             return &StandbyState::getInstance();
         }
 
@@ -382,11 +429,10 @@ State *RunningState::execute()
         {
             state.clearCalibrationRequest();
             printf("Recalibration requested, stopping control loop\n");
+            state.zeroControl();
 
             // Kill the control task to pause operation
             state.set_kill(true);
-            vTaskDelay(pdMS_TO_TICKS(500)); // Wait for tasks to clean up
-            state.set_kill(false);
 
             printf("Returning to CalibrateState for recalibration\n");
             return &CalibrateState::getInstance();
