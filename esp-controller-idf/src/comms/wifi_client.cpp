@@ -51,14 +51,19 @@ void process_dashboard_command(const DashboardCommand *cmd)
         return;
 
     GlobalState &state = GlobalState::instance();
+    
 
     switch (cmd->command_type)
     {
     case 0: // Set ideal direction for steering (or calibration input during calibration)
     {
+        
         Vector3 direction(cmd->ideal_direction_x,
                           cmd->ideal_direction_y,
                           cmd->ideal_direction_z);
+        
+        
+                          printf("Recieved direction commands, %f, %f, %f", direction.x, direction.y, direction.z);
 
         // Route to calibration or normal steering based on system state
         if (state.getSystemState() == GlobalState::SystemState::CALIBRATION)
@@ -69,6 +74,7 @@ void process_dashboard_command(const DashboardCommand *cmd)
         }
         else
         {
+            
             state.setIdealDirection(direction);
             serial_printf("RX: Set direction (%.2f, %.2f, %.2f)\n",
                           cmd->ideal_direction_x, cmd->ideal_direction_y, cmd->ideal_direction_z);

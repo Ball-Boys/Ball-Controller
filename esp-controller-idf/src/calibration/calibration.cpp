@@ -15,11 +15,25 @@ int CalibrationSequence::startCalibration()
     // Get the next magnet to fire for calibration
     // For now, we'll get the orientation from global state
     GlobalState &state = GlobalState::instance();
-    Orientation current_q = state.getOrientation();
+    int i = 0;
+    Orientation current_q(1.0f, 0.0f, 0.0f, 0.0f);
+    while (true) {
+        IMUData imu_data = readIMU();
+        if (imu_data.orientation.empty()) {
+            vTaskDelay(pdMS_TO_TICKS(10)); // Wait for orientation data
+            i++;
+            continue;
+        }
+        Orientation q = imu_data.orientation.back(); // Get latest orientation
+        printf("Calibration step %d: Current orientation: w=%.3f x=%.3f y=%.3f z=%.3f\n", num_calibration_steps + 1, q.w, q.x, q.y, q.z);
+        current_q = q;
+        break;
+    }
+    
 
     current_magnet_id = state.getCalibrationMagnet(current_q);
 
-    printf("Calibration: Firing magnet %d\n", current_magnet_id);
+
 
     return current_magnet_id;
 }
