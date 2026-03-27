@@ -8,7 +8,6 @@
 std::vector<ControlOutputs> computeControl(const std::vector<Orientation> orientation_history, const std::vector<AngularVelocity> angular_velocity_history, const Vector3 targetDirection)
 {
     
-
     // Use the most recent orientation
     if (orientation_history.empty())
     {
@@ -22,6 +21,6 @@ std::vector<ControlOutputs> computeControl(const std::vector<Orientation> orient
     
     std::vector<ControlOutputs> outputs = state.solve(targetDirection.x, targetDirection.y, latest_orient);
 
-    // TODO; Update th9is so we actually use the outputs from the solver.
-    return {};
+    // TODO; Update this so we actually use the outputs from the solver.
+    return outputs;
 }

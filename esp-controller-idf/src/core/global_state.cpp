@@ -17,8 +17,8 @@ GlobalState &GlobalState::instance()
 GlobalState::GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config, Orientation local_offset)
     : magnetList(MagnetList::fromConfig(config, fastLoopTime, local_offset)),
       offset(1.0f, 0.0f, 0.0f, 0.0f),
-      // TODO: Make it so it defaults to 1.0, 0.0, 0.0
-      idealDirection(1.0f, 0.0f, 0.0f)
+
+      idealDirection(0.0f, 0.0f, 0.0f)
 {
     orientationHistory.reserve(kMaxOrientationHistorySize);
     angularVelocityHistory.reserve(kMaxAngularVelocityHistorySize);
@@ -293,7 +293,13 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop()
     std::vector<ControlOutputs> latestControls = getLatestControl();
     std::vector<int> mag_ids;
     std::vector<int> magnets_to_zero = mag_ids;
-
+    if (latestControls.empty()) {
+        for (auto& mag_id: isMagnetRunning) {
+            magnets_to_zero.push_back(mag_id);
+            isMagnetRunning.erase(mag_id);
+            
+        }
+    }
     for (const auto &control : latestControls)
     {
         if (control.current_value != 0.0f)
@@ -307,6 +313,7 @@ std::vector<CurrentInfo> GlobalState::currentControlLoop()
             {
                 magnets_to_zero.push_back(control.magnetId);
                 isMagnetRunning.erase(control.magnetId);
+                
             }
         }
     }
@@ -383,10 +390,8 @@ Vector3 GlobalState::getIdealDirection() const
     return idealDirection;
 }
 
-void GlobalState::setIdealDirection(const Vector3 &value)
-{
-    // TODO: remiplement this so we can actually set the ideal direction.
-    // idealDirection = value;
+void GlobalState::setIdealDirection(const Vector3 &value) {
+    idealDirection = value;
 }
 
 void GlobalState::set_kill(bool value)
@@ -645,7 +650,7 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
 {
     std::vector<ControlOutputs> output;
     // 1. Apply Yaw Offset to Joystick Input
-    float target_mag = sqrtf(joy_x * joy_x + joy_y * joy_y);
+    float target_mag = sqrtf(joy_x * joy_x + joy_y * joy_y) * 100.0f;
     if (target_mag < 0.001f)
         return output; // Deadzone
 
@@ -672,10 +677,6 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
 
         float strength = getTorqueFactor(angle);
 
-        if (i == 1 || i == 6)
-        {
-            printf("Magnet %d | Pos: (%f, %f, %f) | DotG: %f | Angle: %f | Strength: %f\n", i, mag_pos.x, mag_pos.y, mag_pos.z, dot_g, angle, strength);
-        }
         if (strength <= 0.00001f)
             continue;
 
@@ -772,11 +773,7 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
         }
     }
 
-    // printf("Best Score: %f | Count: %d\n", min_score, best_count);
-    for (const auto &ctrl : output)
-    {
-        printf("Output Magnet %d | Current: %f\n", ctrl.magnetId, ctrl.current_value);
-    }
+
 
     return output;
 }
@@ -787,15 +784,14 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
 
 int GlobalState::getCalibrationMagnet(const Orientation &q)
 {
-    Matrix3 R = quatToMatrix(q);
-    Vector3 gravity_ball = R.multiplyTranspose(Vector3(0, 0, -1.0f));
+    Vector3 gravity_ball = Vector3(0, 0, -1.0f);
 
     int best_id = -1;
     float max_strength = -1.0f;
 
     for (int i = 1; i <= 20; i++)
     {
-        float dot_g = getMagnetPosition(i).dot(gravity_ball);
+        float dot_g = getMagnetPosition(i).transform(q).normalized().dot(gravity_ball);
         float dot_clamp = fmaxf(-1.0f, fminf(1.0f, dot_g));
         float angle = acosf(dot_clamp);
 
@@ -815,17 +811,18 @@ void GlobalState::finishCalibration(int fired_magnet_id, const Orientation &q, f
     if (fired_magnet_id <= 0 || fired_magnet_id > 20)
         return;
 
-    Matrix3 R = quatToMatrix(q);
+
     // ASK LEVI, I feel like assuming this could be problematic.
-    Vector3 gravity_ball = R.multiplyTranspose(Vector3(0, 0, -1.0f));
+    Vector3 gravity_ball = Vector3(0, 0, -1.0f);
 
     // 1. Calculate the theoretical force vector of the fired magnet
-    float dot_g = getMagnetPosition(fired_magnet_id).dot(gravity_ball);
-    Vector3 proj_component = getMagnetPosition(fired_magnet_id) - (gravity_ball * dot_g);
+    Vector3 transformed_mag_position = getMagnetPosition(fired_magnet_id).transform(q);
+    float dot_g = transformed_mag_position.dot(gravity_ball);
+    Vector3 proj_component = transformed_mag_position - (gravity_ball * dot_g);
     Vector3 force_dir_body = proj_component.normalized();
 
     // Convert to IMU World Frame
-    Vector3 force_dir_world = R.multiply(force_dir_body);
+    Vector3 force_dir_world = force_dir_body;
 
     // 2. Determine IMU angle
     float theta_imu = atan2f(force_dir_world.y, force_dir_world.x);

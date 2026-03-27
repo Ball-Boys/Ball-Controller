@@ -142,8 +142,9 @@ private:
 
 public:
     static constexpr size_t kMaxCurrentHistorySize = 100;         // Rolling buffer max size
-    static constexpr size_t kMaxOrientationHistorySize = 500;     // Rolling buffer max size
-    static constexpr size_t kMaxAngularVelocityHistorySize = 500; // Rolling buffer max size
+    static constexpr size_t kMaxControlHistorySize = 30;         // Rolling buffer max size
+    static constexpr size_t kMaxOrientationHistorySize = 50;     // Rolling buffer max size
+    static constexpr size_t kMaxAngularVelocityHistorySize = 50; // Rolling buffer max size
 
     const int id;
     const Vector3 position;
@@ -245,6 +246,11 @@ public:
     void setControlValue(const ControlOutputs &value)
     {
         controlHistory.push_back(value);
+        // Remove oldest entry if size exceeds max
+        if (controlHistory.size() > kMaxControlHistorySize)
+        {
+            controlHistory.erase(controlHistory.begin());
+        }
         flushCurrentHistory();
     }
 
@@ -485,7 +491,7 @@ private:
 
 
     float max_current = 8.0f;
-    float current_penalty = 2.0f;
+    float current_penalty = 1.0f;
 
     // Calibration State
     float yaw_offset = 0.0f;

@@ -22,6 +22,7 @@ class CalibrateState;
 class RunningState;
 class TestingState;
 void core1LoopTaskTest(void *param);
+void core1LoopTask(void *param);
 
 // ---------------------------------------------------------
 // 1. Base State Interface
@@ -222,8 +223,8 @@ State *StandbyState::execute()
 State *CalibrateState::execute()
 {
     printf("=== CalibrateState: Running calibration sequence ===\n");
-    GlobalState &global = GlobalState::instance();
-    global.setSystemState(GlobalState::SystemState::CALIBRATION);
+    GlobalState &instance = GlobalState::instance();
+    instance.setSystemState(GlobalState::SystemState::CALIBRATION);
 
     // Create calibration sequence
     CalibrationSequence calibration;
@@ -235,23 +236,48 @@ State *CalibrateState::execute()
     // Get the next magnet to fire
     int magnet_id = calibration.startCalibration();
 
+    int i = 0;
+    Orientation current_q = {1.0f, 0.0f, 0.0f, 0.0f};
+
+    while (true) {
+        if (i >= 150) {
+            return &StandbyState::getInstance(); // Move to run
+        }
+        IMUData imu_data = readIMU();
+
+        if (imu_data.orientation.empty()) {
+            i++;
+            vTaskDelay(pdMS_TO_TICKS(10)); // Wait for orientation data
+            continue;
+        }
+        Orientation q = imu_data.orientation.back(); // Get latest orientation
+        current_q = q;
+        break;
+
+    }
+
     // TODO: Apply magnet current to fire the selected magnet
     // For now, just a placeholder
     printf("Firing magnet %d for calibration\n", magnet_id);
 
+    setPWMOutputs({magnet_id}, {191}); // Fire at about 75% power for testing
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Fire for 0.5 seconds for testing
+    setPWMOutputs({magnet_id}, {0}); // Stop firing
+    
 
     // Wait for user input from dashboard (set_direction command)
-    global.clearCalibrationInput();
-    while (!global.getCalibrationInputAvailable())
+    instance.clearCalibrationInput();
+    while (!instance.getCalibrationInputAvailable())
     {
         vTaskDelay(pdMS_TO_TICKS(50)); // Wait for input
     }
 
     // Get user input and current orientation
-    Vector3 user_input = global.getCalibrationInput();
-    global.clearCalibrationInput();
+    Vector3 user_input = instance.getCalibrationInput();
+    instance.clearCalibrationInput();
 
-    Orientation current_q = global.getOrientation();
+
 
     // Complete this calibration step
     calibration.completeCalibrationStep(user_input.x, user_input.y, current_q);
@@ -259,12 +285,12 @@ State *CalibrateState::execute()
     printf("Calibration finished, waiting for start command...\n");
 
     // Wait for start command to move to running state
-    while (!global.getStartRequested())
+    while (!instance.getStartRequested())
     {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    global.clearStartRequest();
+    instance.clearStartRequest();
     printf("Received start command, moving to RunningState\n");
 
     return &RunningState::getInstance();
@@ -274,8 +300,8 @@ void core1LoopTaskTest(void *param)
 {
     (void)param;
     GlobalState& instance = GlobalState::instance();
-    float current_value = 2.0f;
-    float current_value2 = 2.0f;
+    float current_value = 4.0f;
+    float current_value2 = 4.0f;
     while (true)
     {
         if (instance.isKilled())
@@ -285,13 +311,13 @@ void core1LoopTaskTest(void *param)
         }
 
         // instance.setControl(ControlOutputs(2, current_value));
-        instance.setControl(ControlOutputs(6, current_value2));
+        instance.setControl(ControlOutputs(1, current_value2));
         // instance.setControl(ControlOutputs(5, current_value2));
         printf("Setting Control to %f", current_value);
         if (current_value == 0.0f)
         {
-            current_value = 2.0f;
-            current_value2 = 2.0f;
+            current_value = 4.0f;
+            current_value2 = 4.0f;
         }
         else
         {
@@ -366,9 +392,21 @@ void core1LoopTask(void *param)
 
         // compute control outputs
         std::vector<ControlOutputs> control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
+    
+        // Track which magnets are actively being controlled
+        std::set<int> active_magnets;
         for (auto& output: control_outputs) {
             instance.setControl(output);
+            active_magnets.insert(output.magnetId);
         }
+        
+        // Zero out all magnets not in the control outputs
+        for (int i = 1; i <= 20; ++i) {
+            if (active_magnets.find(i) == active_magnets.end()) {
+                instance.setControl(ControlOutputs(i, 0.0f));
+            }
+        }
+
 
         const int64_t interval_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
 
@@ -378,8 +416,16 @@ void core1LoopTask(void *param)
         const int64_t end_us = esp_timer_get_time() + slow_loop_time_us;
         int64_t fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
 
+        int i = 0;
+
         while (esp_timer_get_time() < end_us)
         {
+            i += 1;
+            if (i % 10 == 0) {
+                if (instance.isKilled()) {
+                    break;
+                }
+            }
             fast_loop_end_us = esp_timer_get_time() + fast_loop_time_us;
 
             instance.currentControlLoop();

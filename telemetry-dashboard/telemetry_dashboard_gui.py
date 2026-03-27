@@ -403,6 +403,8 @@ class DashboardGUI:
     
     def draw_joystick(self):
         """Draw the joystick background"""
+        if self.dashboard.running:
+            self.dashboard.set_direction(self.joystick_x, self.joystick_y, 0)
         self.joystick_canvas.delete("all")
         
         # Draw border
@@ -439,6 +441,8 @@ class DashboardGUI:
         self.joystick_canvas.create_oval(stick_x - ball_size, stick_y - ball_size,
                                          stick_x + ball_size, stick_y + ball_size,
                                          fill=self.colors["accent"], outline="#14b8a6", width=2)
+        
+        
 
     def draw_ball_model(self):
         """Draw top-down position view and 3D orientation view."""
