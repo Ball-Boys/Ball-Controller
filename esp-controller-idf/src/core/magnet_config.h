@@ -21,7 +21,7 @@ constexpr std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> MAGNE
         {16, {111.94f, 40.44f, -1.25f}, {GPIO_NUM_32, 7}, {0x41, 5}},
         {17, {67.93f, 70.73f, 67.45f}, {GPIO_NUM_33, 0}, {0x41, 6}},
         {18, {40.44f, 1.25f, 111.94f}, {GPIO_NUM_33, 1}, {0x41, 7}},
-        {19, {67.93f, 70.73f, 67.45f}, {GPIO_NUM_33, 2}, {0x41, 8}},
+        {19, {67.93f, 70.73f, -67.45f}, {GPIO_NUM_33, 2}, {0x41, 8}},
         {20, {1.25f, -111.94f, 40.44f}, {GPIO_NUM_33, 3}, {0x41, 9}},
     }
 };

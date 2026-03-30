@@ -155,7 +155,7 @@ static void ensure_single_control_loop_task()
     }
 
     const BaseType_t create_result = xTaskCreatePinnedToCore(
-        core1LoopTaskTest,
+        core1LoopTask,
         "Core1",
         4096,
         NULL,
@@ -254,16 +254,30 @@ State *CalibrateState::execute()
         current_q = q;
         break;
 
+    }    
+    // telemetry setpoints and measured current match what is actually commanded.
+    constexpr float kCalibrationCurrentA = 12.0f;
+    constexpr int64_t kCalibrationPulseUs = 1000000; // 1 second
+
+    instance.zeroControl();
+    instance.setControl(ControlOutputs(magnet_id, kCalibrationCurrentA));
+
+    const int64_t fast_loop_time_us = static_cast<int64_t>(instance.fastLoopTime * 1000000.0f);
+    const int64_t pulse_end_us = esp_timer_get_time() + kCalibrationPulseUs;
+
+    while (esp_timer_get_time() < pulse_end_us)
+    {
+        const int64_t iter_end_us = esp_timer_get_time() + fast_loop_time_us;
+        instance.currentControlLoop();
+
+        while (esp_timer_get_time() < iter_end_us)
+        {
+            vTaskDelay(pdMS_TO_TICKS(1));
+        }
     }
 
-    // TODO: Apply magnet current to fire the selected magnet
-    // For now, just a placeholder
-    printf("Firing magnet %d for calibration\n", magnet_id);
-
-    setPWMOutputs({magnet_id}, {191}); // Fire at about 75% power for testing
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Fire for 0.5 seconds for testing
-    setPWMOutputs({magnet_id}, {0}); // Stop firing
+    instance.setControl(ControlOutputs::zero(magnet_id));
+    instance.currentControlLoop();
     
 
     // Wait for user input from dashboard (set_direction command)
@@ -440,7 +454,11 @@ void core1LoopTask(void *param)
 
     instance.set_kill(false); // Reset kill flag for next run
 
-    // TODO: implement cleanup logic here (e.g. set all PWM outputs to 0)
+    if (s_control_loop_handle == xTaskGetCurrentTaskHandle())
+    {
+        s_control_loop_handle = NULL;
+    }
+
 
     vTaskDelete(NULL); // Clean up the task
 }
