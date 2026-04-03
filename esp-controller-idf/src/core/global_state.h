@@ -139,6 +139,8 @@ private:
 
     int controlIntegral = 0;
     mutable SemaphoreHandle_t currentHistoryMutex;
+    const int max_consecutive_overheat_count = 500;
+    int current_on_counter = 0;
 
 public:
     static constexpr size_t kMaxCurrentHistorySize = 100;         // Rolling buffer max size
@@ -190,6 +192,10 @@ public:
     const std::vector<CurrentInfo> &getFlushedCurrentHistory() const
     {
         return flushedCurrentHistory;
+    }
+
+    bool isOverHeated() const {
+        return current_on_counter >= max_consecutive_overheat_count;
     }
 
     const std::vector<CurrentInfo> &getCurrentHistory(int last_n) const
@@ -245,6 +251,16 @@ public:
 
     void setControlValue(const ControlOutputs &value)
     {
+        if (value.current_value > 0)
+        {
+            current_on_counter++;
+        }
+        else
+        {
+            current_on_counter = 0;
+
+        }
+
         controlHistory.push_back(value);
         // Remove oldest entry if size exceeds max
         if (controlHistory.size() > kMaxControlHistorySize)
@@ -400,6 +416,7 @@ public:
     void setControl(const std::vector<ControlOutputs> &values);
     void zeroControl();
 
+
     // functions for getting and setting the offset
     Orientation getOffset() const;
     void setOffset(const Orientation &value);
@@ -457,9 +474,28 @@ public:
 
     bool isCalibrated() const { return is_calibrated; };
 
+    bool isMagnetOverheated(int magnetId) const {
+        return magnetList.getMagnetById(magnetId).isOverHeated();
+    }
+
+    void triggerMagnetOverheat() {
+        magnetOverheatFlag = true;
+    }
+
+    void clearMagnetOverheatFlag() {
+        magnetOverheatFlag = false;
+    }
+
+    bool getMagnetOverheatFlag() const {
+        return magnetOverheatFlag;
+    }
+
+
     
 
 private:
+
+    bool magnetOverheatFlag = false;
 
     GlobalState(const std::array<std::tuple<int, Vector3, ADCAddress, PWMAddress>, 20> &config, Orientation local_offset);
     GlobalState(const GlobalState &) = delete;
@@ -472,6 +508,8 @@ private:
     Vector3 idealDirection = Vector3(1.0f, 0.0f, 0.0f);
     std::vector<int> currentControlledMagnetIds;
     std::set<int> isMagnetRunning = {};
+
+
 
     // Timing instrumentation
 
@@ -490,7 +528,7 @@ private:
     bool calibrationInputAvailable = false;
 
 
-    float max_current = 8.0f;
+    float max_current = 10.0f;
     float current_penalty = 1.0f;
 
     // Calibration State

@@ -114,6 +114,7 @@ private:
     TestingState() = default;
 };
 
+
 // ---------------------------------------------------------
 // 3. State Implementations (The Meat)
 // ---------------------------------------------------------
@@ -406,12 +407,16 @@ void core1LoopTask(void *param)
 
         // compute control outputs
         std::vector<ControlOutputs> control_outputs = computeControl(instance.getOrientationHistory(10), instance.getAngularVelocityHistory(10), instance.getIdealDirection());
-    
+        
         // Track which magnets are actively being controlled
         std::set<int> active_magnets;
         for (auto& output: control_outputs) {
             instance.setControl(output);
             active_magnets.insert(output.magnetId);
+            if (instance.isMagnetOverheated(output.magnetId)) {
+                instance.triggerMagnetOverheat();
+                break;
+            }
         }
         
         // Zero out all magnets not in the control outputs
@@ -488,6 +493,13 @@ State *RunningState::execute()
             return &StandbyState::getInstance();
         }
 
+        if (state.getMagnetOverheatFlag()) {
+            printf("Magnet overheat detected! Stopping control loop and returning to StandbyState\n");
+            state.zeroControl();
+            state.clearMagnetOverheatFlag();
+            return &StandbyState::getInstance();
+        }
+
         // Check if recalibration is requested
         if (state.getCalibrationRequested())
         {
@@ -521,6 +533,8 @@ State *TestingState::execute()
 
     return nullptr; // Should never reach here
 }
+
+
 
 class StateMachine
 {

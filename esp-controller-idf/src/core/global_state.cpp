@@ -199,6 +199,7 @@ void GlobalState::zeroControl()
     }
 }
 
+
 // ============= Offset methods =============
 
 Orientation GlobalState::getOffset() const
@@ -680,7 +681,7 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
         if (strength <= 0.00001f)
             continue;
 
-        if (dot_g >= 0.996f) {
+        if (dot_g >= 0.981f) {
             continue; // Skip magnets that are too aligned with gravity
         }
 
