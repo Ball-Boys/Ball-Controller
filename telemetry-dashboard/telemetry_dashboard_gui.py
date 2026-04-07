@@ -726,14 +726,13 @@ class DashboardGUI:
         """Store the latest current history for graph mode."""
         latest_timestamp = telemetry.timestamp
         for magnet_index in range(20):
-            row = telemetry.magnet_current_values[magnet_index]
-            if row:
-                history = self.magnet_history[magnet_index]
-                for sample in row:
-                    history.append((latest_timestamp, self._clamp_amps(sample)))
-                cutoff = latest_timestamp - 4000
-                while history and history[0][0] < cutoff:
-                    history.pop(0)
+            # magnet_current_values is now a simple array of 20 floats
+            current_value = telemetry.magnet_current_values[magnet_index]
+            history = self.magnet_history[magnet_index]
+            history.append((latest_timestamp, self._clamp_amps(current_value)))
+            cutoff = latest_timestamp - 4000
+            while history and history[0][0] < cutoff:
+                history.pop(0)
 
             setpoint_history = self.magnet_setpoint_history[magnet_index]
             setpoint_history.append((latest_timestamp, self._clamp_amps(telemetry.magnet_setpoints[magnet_index])))
@@ -995,9 +994,8 @@ class DashboardGUI:
             self.system_state = state_map.get(telem.system_state, "Unknown")
 
             # update magnet data from latest values
-            # magnet_current_values is 20x100, use most recent value from each row
-            current_snapshot = [row[-1] if row else 0.0 for row in telem.magnet_current_values]
-            self.magnet_currents = current_snapshot
+            # magnet_current_values is now 20x1 (single current per magnet)
+            self.magnet_currents = list(telem.magnet_current_values)
 
             # Update setpoints directly from telemetry
             self.magnet_setpoints = list(telem.magnet_setpoints)
