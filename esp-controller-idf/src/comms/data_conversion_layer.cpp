@@ -52,15 +52,18 @@ void extract_data_from_globals(ball_data_packet* out_packet) {
         const int sample_count = static_cast<int>(std::min<size_t>(100, current_values.size()));
         const int start_idx = static_cast<int>(current_values.size()) - sample_count;
 
-        for (int i = 0; i < sample_count; i++) {
-            const CurrentInfo& info = current_values[start_idx + i];
-            out_packet->magnet_current_values[magnet_index][i] = info.current;
-            out_packet->magnet_current_timestep[magnet_index][i] = static_cast<int32_t>(
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    info.timestamp.time_since_epoch()
-                ).count()
-            );
+        if (current_values.empty()) {
+            // do nothing
+        } else {
+            const CurrentInfo& info = current_values.back();
+                out_packet->magnet_current_values[magnet_index] = info.current;
+                out_packet->magnet_current_timestep[magnet_index] = static_cast<int32_t>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        info.timestamp.time_since_epoch()
+                    ).count()
+                );
         }
+        
     }
 }
 
