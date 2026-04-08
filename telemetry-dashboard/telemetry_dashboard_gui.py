@@ -6,6 +6,11 @@ import math
 from telemetry_dashboard import BallControllerDashboard
 from ota_upload import upload_firmware
 
+try:
+    import pygame
+except Exception:
+    pygame = None
+
 
 def configure_windows_dpi_awareness():
     """Request per-monitor DPI awareness on Windows for sharper text rendering."""
@@ -50,6 +55,65 @@ class DashboardGUI:
         # Joystick state
         self.joystick_x = 0.0
         self.joystick_y = 0.0
+        self.hardware_joystick = None
+        self.hardware_joystick_name = "None"
+        self.hardware_control_active = False
+        self.hardware_deadzone = 0.08
+        self._pygame_ready = False
+        self.prev_button_states = []
+        self.active_joystick_profile = "generic"
+        # Default button map for T.16000M-style layouts; auto-overridden by profile match.
+        self.joystick_button_map = {
+            "calibrate": 0,
+            "send_direction": 1,
+            "start_running": 2,
+            "stop_running": 3,
+        }
+        self.joystick_profiles = [
+            {
+                "name": "thrustmaster_t16000m",
+                "name_contains": ["thrustmaster", "t.16000"],
+                "axis_x": 0,
+                "axis_y": 1,
+                "invert_y": True,
+                "deadzone": 0.08,
+                "button_map": {
+                    "calibrate": 0,
+                    "send_direction": 1,
+                    "start_running": 2,
+                    "stop_running": 3,
+                },
+            },
+            {
+                "name": "vkb_gladiator_nxt_evo",
+                "name_contains": ["vkb", "gladiator", "nxt", "evo"],
+                "axis_x": 0,
+                "axis_y": 1,
+                "invert_y": True,
+                "deadzone": 0.06,
+                # Placeholder defaults; verify button indices from live GUI Pressed output.
+                "button_map": {
+                    "calibrate": 0,
+                    "send_direction": 1,
+                    "start_running": 2,
+                    "stop_running": 3,
+                },
+            },
+            {
+                "name": "generic",
+                "name_contains": [],
+                "axis_x": 0,
+                "axis_y": 1,
+                "invert_y": True,
+                "deadzone": 0.08,
+                "button_map": {
+                    "calibrate": 0,
+                    "send_direction": 1,
+                    "start_running": 2,
+                    "stop_running": 3,
+                },
+            },
+        ]
 
         # Simulated ball model state (relative to calibrated joystick)
         self.ball_position = [0.0, 0.0]
@@ -102,6 +166,7 @@ class DashboardGUI:
         self.magnet_scale_max_amps = 15.0
         
         self.setup_ui()
+        self.setup_hardware_joystick()
         self.update_action_button_visibility()
         self.update_telemetry()
 
@@ -251,6 +316,26 @@ class DashboardGUI:
         hint_label = tk.Label(left_frame, text="Click and drag to move joystick\nOr use WASD keys", 
                      font=("Segoe UI", 10), bg=self.colors["bg"], fg=self.colors["muted"], justify=tk.CENTER)
         hint_label.pack(pady=5)
+
+        self.input_source_label = tk.Label(
+            left_frame,
+            text="Input source: Mouse/Keyboard",
+            font=("Segoe UI", 10),
+            bg=self.colors["bg"],
+            fg=self.colors["muted"],
+            justify=tk.CENTER,
+        )
+        self.input_source_label.pack(pady=(0, 8))
+
+        self.hardware_detail_label = tk.Label(
+            left_frame,
+            text="Joystick: axes n/a | buttons n/a",
+            font=("Consolas", 9),
+            bg=self.colors["bg"],
+            fg=self.colors["muted"],
+            justify=tk.CENTER,
+        )
+        self.hardware_detail_label.pack(pady=(0, 8))
         
         # Right side - Controls and status
         right_frame = tk.Frame(main_pane, bg=self.colors["bg"])
@@ -742,14 +827,20 @@ class DashboardGUI:
     
     def on_joystick_click(self, event):
         """Handle joystick click"""
+        if self.hardware_control_active:
+            return
         self.update_joystick_position(event.x, event.y)
     
     def on_joystick_drag(self, event):
         """Handle joystick drag"""
+        if self.hardware_control_active:
+            return
         self.update_joystick_position(event.x, event.y)
     
     def on_joystick_release(self, event):
         """Handle joystick release - reset to center"""
+        if self.hardware_control_active:
+            return
         self.joystick_x = 0.0
         self.joystick_y = 0.0
         self.draw_joystick()
@@ -781,35 +872,225 @@ class DashboardGUI:
     
     def on_key_w(self, event):
         """Handle W key (up)"""
+        if self.hardware_control_active:
+            return
         self.joystick_y = 1.0
         self.draw_joystick()
         self.joystick_value_label.config(text=f"X: {self.joystick_x:.2f}  Y: {self.joystick_y:.2f}")
     
     def on_key_a(self, event):
         """Handle A key (left)"""
+        if self.hardware_control_active:
+            return
         self.joystick_x = -1.0
         self.draw_joystick()
         self.joystick_value_label.config(text=f"X: {self.joystick_x:.2f}  Y: {self.joystick_y:.2f}")
     
     def on_key_s(self, event):
         """Handle S key (down)"""
+        if self.hardware_control_active:
+            return
         self.joystick_y = -1.0
         self.draw_joystick()
         self.joystick_value_label.config(text=f"X: {self.joystick_x:.2f}  Y: {self.joystick_y:.2f}")
     
     def on_key_d(self, event):
         """Handle D key (right)"""
+        if self.hardware_control_active:
+            return
         self.joystick_x = 1.0
         self.draw_joystick()
         self.joystick_value_label.config(text=f"X: {self.joystick_x:.2f}  Y: {self.joystick_y:.2f}")
     
     def on_key_release(self, event):
         """Reset joystick on key release"""
+        if self.hardware_control_active:
+            return
         if event.keysym in ['w', 'a', 's', 'd']:
             self.joystick_x = 0.0
             self.joystick_y = 0.0
             self.draw_joystick()
             self.joystick_value_label.config(text="X: 0.00  Y: 0.00")
+
+    def setup_hardware_joystick(self):
+        """Initialize optional hardware joystick support (Thrustmaster T.16000M preferred)."""
+        if pygame is None:
+            self.input_source_label.config(text="Input source: Mouse/Keyboard (install pygame for USB joystick)")
+            self.hardware_detail_label.config(text="Joystick: pygame not installed")
+            return
+
+        try:
+            pygame.init()
+            pygame.joystick.init()
+            self._pygame_ready = True
+        except Exception as exc:
+            self.input_source_label.config(text=f"Input source: Mouse/Keyboard (pygame init failed: {exc})")
+            self.hardware_detail_label.config(text="Joystick: unavailable")
+            return
+
+        self._connect_hardware_joystick()
+        self.root.after(50, self.poll_hardware_joystick)
+
+    def _connect_hardware_joystick(self):
+        """Connect to T.16000M if present, otherwise first available joystick."""
+        if not self._pygame_ready:
+            return
+
+        try:
+            pygame.joystick.quit()
+            pygame.joystick.init()
+            count = pygame.joystick.get_count()
+        except Exception:
+            count = 0
+
+        if count <= 0:
+            self.hardware_joystick = None
+            self.hardware_joystick_name = "None"
+            self.hardware_control_active = False
+            self.prev_button_states = []
+            self.input_source_label.config(text="Input source: Mouse/Keyboard (no joystick detected)")
+            self.hardware_detail_label.config(text="Joystick: not connected")
+            return
+
+        preferred_index = None
+        fallback_index = 0
+        for index in range(count):
+            js = pygame.joystick.Joystick(index)
+            js.init()
+            name = (js.get_name() or "").lower()
+            if (
+                "vkb" in name
+                or "gladiator" in name
+                or "nxt" in name
+                or "evo" in name
+                or "thrustmaster" in name
+                or "t.16000" in name
+            ):
+                preferred_index = index
+                break
+
+        selected_index = preferred_index if preferred_index is not None else fallback_index
+        js = pygame.joystick.Joystick(selected_index)
+        js.init()
+
+        self.hardware_joystick = js
+        self.hardware_joystick_name = js.get_name() or f"Joystick {selected_index}"
+        self.hardware_control_active = True
+        self.prev_button_states = [False] * js.get_numbuttons()
+        self._apply_joystick_profile(self.hardware_joystick_name)
+        self.input_source_label.config(text=f"Input source: USB joystick ({self.hardware_joystick_name})")
+        mapping_text = (
+            f"Profile:{self.active_joystick_profile} "
+            f"Btn map cal={self.joystick_button_map['calibrate']} "
+            f"dir={self.joystick_button_map['send_direction']} "
+            f"start={self.joystick_button_map['start_running']} "
+            f"stop={self.joystick_button_map['stop_running']}"
+        )
+        self.hardware_detail_label.config(text=mapping_text)
+
+    def _apply_joystick_profile(self, joystick_name):
+        """Apply per-device axis and button mapping defaults based on joystick name."""
+        lower_name = (joystick_name or "").lower()
+        selected_profile = None
+
+        for profile in self.joystick_profiles:
+            keys = profile.get("name_contains", [])
+            if keys and any(key in lower_name for key in keys):
+                selected_profile = profile
+                break
+
+        if selected_profile is None:
+            selected_profile = next((p for p in self.joystick_profiles if p.get("name") == "generic"), None)
+            if selected_profile is None:
+                return
+
+        self.active_joystick_profile = selected_profile["name"]
+        self.hardware_deadzone = float(selected_profile.get("deadzone", 0.08))
+        self.joystick_axis_x = int(selected_profile.get("axis_x", 0))
+        self.joystick_axis_y = int(selected_profile.get("axis_y", 1))
+        self.joystick_invert_y = bool(selected_profile.get("invert_y", True))
+        self.joystick_button_map = dict(selected_profile.get("button_map", self.joystick_button_map))
+
+    def _trigger_joystick_action(self, action_name):
+        """Execute one mapped joystick action."""
+        if action_name == "calibrate":
+            self.on_calibrate()
+        elif action_name == "send_direction":
+            self.on_send_direction()
+        elif action_name == "start_running":
+            self.on_start()
+        elif action_name == "stop_running":
+            self.on_stop_running()
+
+    def _handle_joystick_button_actions(self, button_states):
+        """Trigger actions on rising button edges (pressed now, not pressed before)."""
+        if not self.prev_button_states:
+            self.prev_button_states = [False] * len(button_states)
+
+        for action_name, button_index in self.joystick_button_map.items():
+            if button_index < 0 or button_index >= len(button_states):
+                continue
+            was_pressed = self.prev_button_states[button_index]
+            is_pressed = button_states[button_index]
+            if is_pressed and not was_pressed:
+                self._trigger_joystick_action(action_name)
+
+        self.prev_button_states = list(button_states)
+
+    def poll_hardware_joystick(self):
+        """Poll hardware joystick and map axes into the existing joystick control state."""
+        if not self._pygame_ready:
+            return
+
+        try:
+            pygame.event.pump()
+        except Exception:
+            pass
+
+        if self.hardware_joystick is None:
+            self._connect_hardware_joystick()
+            self.root.after(200, self.poll_hardware_joystick)
+            return
+
+        try:
+            x_axis = float(self.hardware_joystick.get_axis(self.joystick_axis_x))
+            y_axis = float(self.hardware_joystick.get_axis(self.joystick_axis_y))
+            axis_count = self.hardware_joystick.get_numaxes()
+            button_count = self.hardware_joystick.get_numbuttons()
+
+            button_states = [bool(self.hardware_joystick.get_button(i)) for i in range(button_count)]
+            self._handle_joystick_button_actions(button_states)
+
+            if abs(x_axis) < self.hardware_deadzone:
+                x_axis = 0.0
+            if abs(y_axis) < self.hardware_deadzone:
+                y_axis = 0.0
+
+            # Tk joystick uses +Y upward; most joystick APIs return +Y downward.
+            self.joystick_x = max(-1.0, min(1.0, x_axis))
+            mapped_y = -y_axis if self.joystick_invert_y else y_axis
+            self.joystick_y = max(-1.0, min(1.0, mapped_y))
+            self.draw_joystick()
+            self.joystick_value_label.config(text=f"X: {self.joystick_x:.2f}  Y: {self.joystick_y:.2f}")
+
+            pressed = [str(i) for i, pressed in enumerate(button_states) if pressed]
+            pressed_text = ",".join(pressed) if pressed else "none"
+            self.hardware_detail_label.config(
+                text=(
+                    f"{self.active_joystick_profile} Axes:{axis_count} Buttons:{button_count} "
+                    f"A{self.joystick_axis_x}={x_axis:+.2f} A{self.joystick_axis_y}={mapped_y:+.2f} "
+                    f"Pressed:{pressed_text}"
+                )
+            )
+        except Exception:
+            self.hardware_joystick = None
+            self.hardware_joystick_name = "None"
+            self.hardware_control_active = False
+            self.prev_button_states = []
+            self.input_source_label.config(text="Input source: Mouse/Keyboard (joystick disconnected)")
+            self.hardware_detail_label.config(text="Joystick: disconnected")
+
+        self.root.after(50, self.poll_hardware_joystick)
     
     def _check_connected(self, action_name: str) -> bool:
         """Return True if ESP32 is connected, else show warning."""
@@ -1062,6 +1343,12 @@ class DashboardGUI:
     def on_closing(self):
         """Handle window closing"""
         self.dashboard.stop()
+        if self._pygame_ready:
+            try:
+                pygame.joystick.quit()
+                pygame.quit()
+            except Exception:
+                pass
         self.root.destroy()
 
 if __name__ == "__main__":
