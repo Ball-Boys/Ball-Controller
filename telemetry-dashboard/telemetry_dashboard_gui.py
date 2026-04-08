@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, filedialog
 import ctypes
 import threading
 import math
+import time
 from telemetry_dashboard import BallControllerDashboard
 from ota_upload import upload_firmware
 
@@ -59,15 +60,19 @@ class DashboardGUI:
         self.hardware_joystick_name = "None"
         self.hardware_control_active = False
         self.hardware_deadzone = 0.08
+        self.calibration_direction_min_magnitude = 0.35
+        self.calibration_start_delay_ms = 250
+        self.running_direction_send_period_s = 0.1
+        self.last_running_direction_send_time = 0.0
         self._pygame_ready = False
         self.prev_button_states = []
         self.active_joystick_profile = "generic"
         # Default button map for T.16000M-style layouts; auto-overridden by profile match.
         self.joystick_button_map = {
-            "calibrate": 0,
-            "send_direction": 1,
-            "start_running": 2,
-            "stop_running": 3,
+            "enter_calibration": 0,
+            "send_calibration_and_start": 1,
+            "stop_to_standby": 2,
+            "start_running": 3,
         }
         self.joystick_profiles = [
             {
@@ -78,10 +83,10 @@ class DashboardGUI:
                 "invert_y": True,
                 "deadzone": 0.08,
                 "button_map": {
-                    "calibrate": 0,
-                    "send_direction": 1,
-                    "start_running": 2,
-                    "stop_running": 3,
+                    "enter_calibration": 0,
+                    "send_calibration_and_start": 1,
+                    "stop_to_standby": 2,
+                    "start_running": 3,
                 },
             },
             {
@@ -93,10 +98,10 @@ class DashboardGUI:
                 "deadzone": 0.06,
                 # Placeholder defaults; verify button indices from live GUI Pressed output.
                 "button_map": {
-                    "calibrate": 0,
-                    "send_direction": 1,
-                    "start_running": 2,
-                    "stop_running": 3,
+                    "enter_calibration": 0,
+                    "send_calibration_and_start": 1,
+                    "stop_to_standby": 2,
+                    "start_running": 3,
                 },
             },
             {
@@ -107,13 +112,14 @@ class DashboardGUI:
                 "invert_y": True,
                 "deadzone": 0.08,
                 "button_map": {
-                    "calibrate": 0,
-                    "send_direction": 1,
-                    "start_running": 2,
-                    "stop_running": 3,
+                    "enter_calibration": 0,
+                    "send_calibration_and_start": 1,
+                    "stop_to_standby": 2,
+                    "start_running": 3,
                 },
             },
         ]
+        self.mock_mode_enabled = tk.BooleanVar(value=False)
 
         # Simulated ball model state (relative to calibrated joystick)
         self.ball_position = [0.0, 0.0]
@@ -369,6 +375,20 @@ class DashboardGUI:
         self.state_label = tk.Label(status_inner, text="Standby",
                         font=("Segoe UI", 15, "bold"), bg=self.colors["panel"], fg=self.colors["accent"], justify=tk.LEFT)
         self.state_label.pack(anchor="w", pady=(8, 0))
+
+        self.mock_mode_toggle = tk.Checkbutton(
+            status_inner,
+            text="Mock mode (no ESP required)",
+            variable=self.mock_mode_enabled,
+            command=self.on_mock_mode_toggle,
+            bg=self.colors["panel"],
+            fg=self.colors["muted"],
+            activebackground=self.colors["panel"],
+            activeforeground=self.colors["text"],
+            selectcolor=self.colors["panel_alt"],
+            font=("Segoe UI", 9),
+        )
+        self.mock_mode_toggle.pack(anchor="w", pady=(6, 0))
         
         # Control buttons frame
         button_frame = tk.LabelFrame(top_right_frame, text="Controls",
@@ -488,8 +508,6 @@ class DashboardGUI:
     
     def draw_joystick(self):
         """Draw the joystick background"""
-        if self.dashboard.running:
-            self.dashboard.set_direction(self.joystick_x, self.joystick_y, 0)
         self.joystick_canvas.delete("all")
         
         # Draw border
@@ -981,10 +999,10 @@ class DashboardGUI:
         self.input_source_label.config(text=f"Input source: USB joystick ({self.hardware_joystick_name})")
         mapping_text = (
             f"Profile:{self.active_joystick_profile} "
-            f"Btn map cal={self.joystick_button_map['calibrate']} "
-            f"dir={self.joystick_button_map['send_direction']} "
-            f"start={self.joystick_button_map['start_running']} "
-            f"stop={self.joystick_button_map['stop_running']}"
+            f"Btn map cal={self.joystick_button_map['enter_calibration']} "
+            f"cal+go={self.joystick_button_map['send_calibration_and_start']} "
+            f"stop={self.joystick_button_map['stop_to_standby']} "
+            f"start={self.joystick_button_map['start_running']}"
         )
         self.hardware_detail_label.config(text=mapping_text)
 
@@ -1013,14 +1031,14 @@ class DashboardGUI:
 
     def _trigger_joystick_action(self, action_name):
         """Execute one mapped joystick action."""
-        if action_name == "calibrate":
+        if action_name == "enter_calibration":
             self.on_calibrate()
-        elif action_name == "send_direction":
-            self.on_send_direction()
+        elif action_name == "send_calibration_and_start":
+            self.on_send_calibration_and_start()
+        elif action_name == "stop_to_standby":
+            self.on_stop_running()
         elif action_name == "start_running":
             self.on_start()
-        elif action_name == "stop_running":
-            self.on_stop_running()
 
     def _handle_joystick_button_actions(self, button_states):
         """Trigger actions on rising button edges (pressed now, not pressed before)."""
@@ -1094,18 +1112,95 @@ class DashboardGUI:
     
     def _check_connected(self, action_name: str) -> bool:
         """Return True if ESP32 is connected, else show warning."""
-        if not self.dashboard.is_connected:
+        if not self._is_effectively_connected():
             messagebox.showwarning("Not Connected",
                                    f"Cannot {action_name}: no telemetry from ESP32.\n"
                                    "Make sure you are connected to the ESP32 WiFi network.")
             return False
         return True
 
+    def _is_effectively_connected(self) -> bool:
+        """Treat mock mode as connected to allow offline testing."""
+        return self.mock_mode_enabled.get() or self.dashboard.is_connected
+
+    def on_mock_mode_toggle(self):
+        """Enable/disable offline mock mode in the GUI."""
+        if self.mock_mode_enabled.get():
+            if self.system_state == "Disconnected":
+                self.system_state = "Standby"
+            self.update_status("Mock mode enabled (offline simulation)")
+        else:
+            if not self.dashboard.is_connected:
+                self.system_state = "Disconnected"
+            self.update_status("Mock mode disabled")
+
+    def _stream_running_direction(self):
+        """Continuously stream joystick direction while in Running mode."""
+        if self.system_state != "Running" or not self._is_effectively_connected():
+            return
+
+        now = time.monotonic()
+        if (now - self.last_running_direction_send_time) < self.running_direction_send_period_s:
+            return
+
+        self.last_running_direction_send_time = now
+        _, x, y = self._normalized_direction_from_joystick(min_magnitude=0.01)
+
+        # Keep direction and setpoint displays current while running.
+        magnitude = math.sqrt(self.joystick_x ** 2 + self.joystick_y ** 2)
+        for i in range(20):
+            self.magnet_setpoints[i] = magnitude
+
+        if self.mock_mode_enabled.get():
+            self.ball_vel_map[0] = 0.85 * self.ball_vel_map[0] + 0.15 * (x * 2.0)
+            self.ball_vel_map[1] = 0.85 * self.ball_vel_map[1] + 0.15 * (y * 2.0)
+            self.ball_pos_map[0] += self.ball_vel_map[0] * self.physics_dt
+            self.ball_pos_map[1] += self.ball_vel_map[1] * self.physics_dt
+            self.ball_pos_map[0] = max(-self.map_box_limit, min(self.map_box_limit, self.ball_pos_map[0]))
+            self.ball_pos_map[1] = max(-self.map_box_limit, min(self.map_box_limit, self.ball_pos_map[1]))
+            simulated_current = min(15.0, magnitude * 12.0)
+            self.magnet_currents = [simulated_current for _ in range(20)]
+        else:
+            self.dashboard.set_direction(x, y, 0.0)
+
+    def _normalized_direction_from_joystick(self, min_magnitude: float = 0.01):
+        """Return (magnitude, x, y) where x/y are normalized direction and 0,0 if under threshold."""
+        magnitude = math.sqrt(self.joystick_x ** 2 + self.joystick_y ** 2)
+        if magnitude <= min_magnitude:
+            return magnitude, 0.0, 0.0
+        return magnitude, self.joystick_x / magnitude, self.joystick_y / magnitude
+
+    def _send_calibrate_command(self):
+        """Send calibrate command and update status text."""
+        if self.mock_mode_enabled.get():
+            self.system_state = "Calibration"
+        else:
+            self.dashboard.calibrate()
+        self.update_status("Calibration command sent")
+
+    def _send_direction_and_start(self):
+        """Send calibration direction (if significant) then start running."""
+        magnitude, x, y = self._normalized_direction_from_joystick(
+            min_magnitude=self.calibration_direction_min_magnitude
+        )
+        if x == 0.0 and y == 0.0:
+            self.update_status(
+                f"Direction too small for calibration ({magnitude:.2f} < {self.calibration_direction_min_magnitude:.2f})"
+            )
+            return
+
+        if self.mock_mode_enabled.get():
+            self.magnet_setpoints = [magnitude for _ in range(20)]
+        else:
+            self.dashboard.set_direction(x, y, 0.0)
+        self.update_status(f"Calibration direction sent: ({x:.2f}, {y:.2f}) | starting...")
+        self.root.after(self.calibration_start_delay_ms, self.on_start)
+
     def update_action_button_visibility(self):
         """Show only actions that are valid for the current telemetry state."""
-        connected = self.dashboard.is_connected
+        connected = self._is_effectively_connected()
 
-        can_calibrate = connected and self.system_state == "Standby"
+        can_calibrate = connected and self.system_state in ("Standby", "Calibration", "Running")
         can_start = connected and self.system_state == "Calibration"
         can_send_direction = connected and self.system_state == "Calibration"
         can_flash = connected and self.system_state == "Standby"
@@ -1143,35 +1238,37 @@ class DashboardGUI:
         """Calibrate button pressed"""
         if not self._check_connected("calibrate"):
             return
-        self.dashboard.calibrate()
-        self.update_status("Calibration command sent")
+        # If running, stop first so calibration can safely take over.
+        if self.system_state == "Running":
+            self.dashboard.stop_running()
+            self.update_status("Stop sent; entering calibration mode...")
+            self.root.after(150, self._send_calibrate_command)
+            return
+
+        self._send_calibrate_command()
 
     def on_start(self):
         """Start button pressed"""
         if not self._check_connected("start"):
             return
-        self.dashboard.start_running()
+        if self.mock_mode_enabled.get():
+            self.system_state = "Running"
+        else:
+            self.dashboard.start_running()
         self.update_status("Start command sent")
 
     def on_send_direction(self):
         """Send current joystick direction"""
         if not self._check_connected("send direction"):
             return
-        # Normalize to unit vector (or zero if center)
-        magnitude = math.sqrt(self.joystick_x**2 + self.joystick_y**2)
-        
-        if magnitude > 0.01:  # Deadzone
-            x = self.joystick_x / magnitude
-            y = self.joystick_y / magnitude
-        else:
-            x = 0.0
-            y = 0.0
+        magnitude, x, y = self._normalized_direction_from_joystick(min_magnitude=0.01)
 
         # Setpoint for magnets: approximate as normalized target magnitude
         for i in range(20):
             self.magnet_setpoints[i] = magnitude * 1.0  # placeholder scale
 
-        self.dashboard.set_direction(x, y, 0.0)
+        if not self.mock_mode_enabled.get():
+            self.dashboard.set_direction(x, y, 0.0)
         self.update_status(f"Sent direction: ({x:.2f}, {y:.2f})")
 
         # Simulate physics in running mode to reflect on ball model
@@ -1179,9 +1276,24 @@ class DashboardGUI:
             self.ball_velocity[0] = x * 0.5  # scaled velocity
             self.ball_velocity[1] = y * 0.5
 
+    def on_send_calibration_and_start(self):
+        """Joystick workflow: enter calibration (if needed), send direction, then start running."""
+        if not self._check_connected("send calibration direction"):
+            return
+
+        if self.system_state != "Calibration":
+            self.on_calibrate()
+            self.root.after(300, self._send_direction_and_start)
+            return
+
+        self._send_direction_and_start()
+
     def on_stop_running(self):
         """Stop running button pressed - always allowed even if disconnected"""
-        self.dashboard.stop_running()
+        if self.mock_mode_enabled.get():
+            self.system_state = "Standby"
+        else:
+            self.dashboard.stop_running()
         self.ball_velocity = [0.0, 0.0]
         self.ball_position = [0.0, 0.0]
         self.update_status("Stop running sent")
@@ -1237,8 +1349,10 @@ class DashboardGUI:
         """Update telemetry display"""
 
         # --- Connection indicator ---
-        connected = self.dashboard.is_connected
-        if connected:
+        connected = self._is_effectively_connected()
+        if connected and self.mock_mode_enabled.get():
+            self.connection_label.config(text="\u25cf Mock Connected", fg=self.colors["warning"])
+        elif connected:
             self.connection_label.config(text="\u25cf Connected", fg="#00ff00")
         else:
             self.connection_label.config(text="\u25cf Disconnected", fg="#ff4444")
@@ -1246,6 +1360,8 @@ class DashboardGUI:
                 self.system_state = "Disconnected"
                 self.state_label.config(text="State: Disconnected", fg="#888888")
                 self.status_label.config(text="Waiting for ESP32 telemetry...")
+
+        self._stream_running_direction()
 
         # Keep legacy local state in sync with telemetry-driven map model for labels.
         self.ball_position[0] = self.ball_pos_map[0] / self.map_box_limit
@@ -1261,7 +1377,7 @@ class DashboardGUI:
 
         self.draw_magnet_grid()
 
-        if self.dashboard.latest_telemetry and connected:
+        if self.dashboard.latest_telemetry and connected and not self.mock_mode_enabled.get():
             telem = self.dashboard.latest_telemetry
 
             # Update state from ESP telemetry (authoritative source)
@@ -1332,6 +1448,23 @@ class DashboardGUI:
                 self.telemetry_text.config(state=tk.DISABLED)
 
             self.draw_magnet_grid()
+        elif self.mock_mode_enabled.get():
+            self.latest_telemetry_timestamp = int(time.time() * 1000)
+            self.draw_magnet_grid()
+            avg_current = sum(self.magnet_currents) / len(self.magnet_currents)
+            text_content = (
+                f"State: {self.system_state} (MOCK)\n"
+                f"Timestamp: {self.latest_telemetry_timestamp} ms\n"
+                f"Magnet avg current: {avg_current:.2f}\n"
+                f"Joystick: X={self.joystick_x:.2f}, Y={self.joystick_y:.2f}\n"
+                "Telemetry source: local simulation\n"
+            )
+            if text_content != self._prev_telemetry_text:
+                self._prev_telemetry_text = text_content
+                self.telemetry_text.config(state=tk.NORMAL)
+                self.telemetry_text.delete("1.0", tk.END)
+                self.telemetry_text.insert("1.0", text_content)
+                self.telemetry_text.config(state=tk.DISABLED)
 
         self.state_label.config(text=f"State: {self.system_state}",
                                 fg="#00ffff" if connected else "#888888")

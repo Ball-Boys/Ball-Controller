@@ -31,12 +31,29 @@ You can see the active input source under the joystick widget in the GUI.
 
 Current default mapping in the GUI code:
 
-- Button `0` -> Calibrate
-- Button `1` -> Send Direction
-- Button `2` -> Start Running
-- Button `3` -> Emergency Stop
+- Button `0` -> Enter Calibration Mode (works from Standby, Calibration, or Running)
+- Button `1` -> Send Calibration Direction and Auto-Start
+- Button `2` -> Stop to Standby
+- Button `3` -> Start Running
 
 These actions trigger on press (rising edge), so holding a button does not repeatedly spam commands.
+
+Direction safety behavior:
+
+- Joystick movement alone does **not** send direction commands anymore.
+- Direction is only sent when you explicitly trigger an action (`SEND DIRECTION` button or joystick button action).
+- Calibration direction send requires a minimum stick deflection (`0.35` magnitude by default) to avoid accidental tiny commands.
+
+Running mode behavior:
+
+- While state is `Running`, the GUI continuously streams joystick direction at ~10 Hz.
+- This applies to mouse drag, WASD, and USB joystick input.
+
+## Mock Mode (No ESP)
+
+- Use the `Mock mode (no ESP required)` toggle in the Status panel.
+- In mock mode, the dashboard behaves as connected and simulates telemetry locally.
+- You can verify joystick axes, button mappings, state transitions, and control workflow without ESP hardware.
 
 ### VKB Gladiator NXT EVO Notes
 
