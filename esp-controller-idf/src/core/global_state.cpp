@@ -647,7 +647,46 @@ struct Candidate
     Vector3 vec;
 };
 
+namespace
+{
+constexpr float kBallRadiusMeters = 0.225f;
+constexpr float kRollingVelocityFactor = 1.0f;
+
+Vector3 toVector3(const AngularVelocity &angular_velocity)
+{
+    return Vector3(angular_velocity.x, angular_velocity.y, angular_velocity.z);
+}
+
+Vector3 estimateRollingCorrection(const std::vector<AngularVelocity> &angular_velocity_history,
+                                  const Orientation &q,
+                                  float loop_dt_seconds)
+{
+    if (angular_velocity_history.empty())
+    {
+        return Vector3(0.0f, 0.0f, 0.0f);
+    }
+
+    Vector3 latest_omega = toVector3(angular_velocity_history.back());
+    Vector3 predicted_omega = latest_omega;
+
+    if (angular_velocity_history.size() >= 2 && loop_dt_seconds > 0.0001f)
+    {
+        Vector3 previous_omega = toVector3(angular_velocity_history[angular_velocity_history.size() - 2]);
+        Vector3 angular_acceleration = (latest_omega - previous_omega) / loop_dt_seconds;
+        predicted_omega = latest_omega;
+    }
+
+    Vector3 predicted_linear_velocity = predicted_omega.transform(q) * (kBallRadiusMeters * kRollingVelocityFactor);
+    return predicted_linear_velocity;
+}
+} // namespace
+
 std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const Orientation &q)
+{
+    return solve(joy_x, joy_y, q, {});
+}
+
+std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const Orientation &q, const std::vector<AngularVelocity> &angular_velocity_history)
 {
     std::vector<ControlOutputs> output;
     // 1. Apply Yaw Offset to Joystick Input
@@ -660,8 +699,13 @@ std::vector<ControlOutputs> GlobalState::solve(float joy_x, float joy_y, const O
 
     Vector3 desired_force_world(cosf(theta_imu) * target_mag, sinf(theta_imu) * target_mag, 0.0f);
 
+    // Rolling without slipping: estimate the ball's linear motion from angular velocity,
+    // then subtract that from the ideal direction so the magnets compensate for drift.
+    Vector3 rolling_correction = estimateRollingCorrection(angular_velocity_history, q, slowLoopTime);
+    desired_force_world = desired_force_world - rolling_correction;
+
     // 2. Coordinate Transforms
-    
+
     Vector3 target_force_body = desired_force_world;
     Vector3 gravity_ball = Vector3(0, 0, -1.0f);
 

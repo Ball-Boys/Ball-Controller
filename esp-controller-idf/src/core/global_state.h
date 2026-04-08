@@ -464,6 +464,7 @@ public:
     // 1. Regular Operation
     // Takes user joystick vector (x, y) and IMU quaternion. Returns number of active magnets.
     std::vector<ControlOutputs> solve(float joy_x, float joy_y, const Orientation &q);
+    std::vector<ControlOutputs> solve(float joy_x, float joy_y, const Orientation &q, const std::vector<AngularVelocity> &angular_velocity_history);
 
     // 2. Calibration Phase Methods
     // Step A: Find best magnet to fire, returns its ID.

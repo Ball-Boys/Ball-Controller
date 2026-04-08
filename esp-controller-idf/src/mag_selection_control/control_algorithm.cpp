@@ -19,7 +19,7 @@ std::vector<ControlOutputs> computeControl(const std::vector<Orientation> orient
     // Get the ball controller instance
     GlobalState &state = GlobalState::instance();
     
-    std::vector<ControlOutputs> outputs = state.solve(targetDirection.x, targetDirection.y, latest_orient);
+    std::vector<ControlOutputs> outputs = state.solve(targetDirection.x, targetDirection.y, latest_orient, angular_velocity_history);
 
     // TODO; Update this so we actually use the outputs from the solver.
     return outputs;
