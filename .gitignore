@@ -65,3 +65,40 @@ build/
 **/build/
 
 managed_components/
+
+# LaTeX intermediate files
+**.aux
+**.bbl
+**.blg
+**.brf
+**.log
+**.out
+**.toc
+**.lof
+**.lot
+**.fls
+**.fdb_latexmk
+**.synctex.gz
+**.nav
+**.snm
+**.vrb
+**.xdv
+
+# Temporary or backup files
+**~
+**.bak
+**.backup
+**.swp
+**.DS_Store
+
+# PDF output (optional: ignore if you want to version PDFs)
+**.pdf
+
+# Other generated files
+**.lof
+**.lot
+**.run.xml
+
+# Build directories (if you use a separate folder for builds)
+build/
+output/
