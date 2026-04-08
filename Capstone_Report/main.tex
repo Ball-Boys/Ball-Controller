@@ -1,4 +1,4 @@
-\documentclass[11pt]{article} % Changed from report to article
+\documentclass[11pt]{article}
 
 % Packages
 \usepackage[margin=1in]{geometry}
@@ -401,6 +401,37 @@ We selected the HCPL-7520 amplifier due to having good common mode voltage rejec
 \textbf{Flyback and Protection}\\
 As discussed in the theory section, our circuit must provide a path for current to continue to flow when switched off. This is crucial to protect circuit components from inductor kickback but also to maintain smooth and controllable current through the electromagnet. We solved this problem by placing a diode between the low side of the electromagnet and the supply as seen in Figure 18 We used the SBX3040-3G schottky diode rated for 40 V and 30 A, which meets our requirements.
 
+\subsection{Software Architecture}
+The software systems connects all system components allowing the system to function. This section of the report will outline the following key components:
+\begin{enumerate}
+    \item Data Communication
+    \item State Machine 
+    \item Microcontroller Selection
+    \item Subsystem Overviews
+    \begin{enumerate}
+        \item Orientation Tracking
+        \item Magnet Selection Algorithm 
+        \item Calibration Overview
+        \item Telemetry Dashboard
+    \end{enumerate}
+\end{enumerate}
+
+
+
+\subsubsection{Data Communication Overview}
+Since, our system has an interactive component and our ball will be moving, we we needed both a user interface and the device. Our devices communciate over wifi network hosted on the ESP. (TODO complete this and the diagram)
+
+\subsubsection{State Machine}
+Our on device state management is implemeneted as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/state-machine-breakdown.png}
+    \caption[State Machine Diagram]{Outline of the state machine implemented on the microcontroller}
+    \label{fig:State_Machine}
+\end{figure}
+
+Each s
 
 \subsubsection{Tests and Results}
 
