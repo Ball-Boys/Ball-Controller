@@ -1,4 +1,4 @@
-\documentclass[11pt]{article} % Changed from report to article
+\documentclass[11pt]{article}
 
 % Packages
 \usepackage[margin=1in]{geometry}
@@ -328,6 +328,68 @@ We selected the HCPL-7520 amplifier due to having good common mode voltage rejec
 
 \textbf{Flyback and Protection}\\
 As discussed in the theory section, our circuit must provide a path for current to continue to flow when switched off. This is crucial to protect circuit components from inductor kickback but also to maintain smooth and controllable current through the electromagnet. We solved this problem by placing a diode between the low side of the electromagnet and the supply as seen in Figure 18 We used the SBX3040-3G schottky diode rated for 40 V and 30 A, which meets our requirements.
+
+\subsection{Software Architecture}
+The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
+
+\subsubsection{Background}
+The high level goal of the software is to cooridnate the current going throiugh each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: location of each magnet relative to the origin of the ball, selection of which magnet to activiate, and calibration between the joystick and the ball. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/eye-of-god-figure.png}
+    \caption[Software Overview]{A diagram outlining the functionality hoping to be achieved by the software.}
+    \label{fig:Software_Overview}
+\end{figure}
+
+The software will be running on the ball and our dashboard interfacing together to create a cohesive experince for the user. 
+
+
+\subsubsection{Data Communication Overview}
+The first important challenge is to figure out how the different components of our system will interact and pass data in between. Since our ball will rotate omnidirectionally, a wired data trasmission makes little sense. We choose to implement a wifi based communication hosted on the ESP that the dahsboard would connect to. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/communication-diagram.png}
+    \caption[Communication Diagram]{A diagram outlining the communication between the user interface and the ball.}
+    \label{fig:Communication_Diagram}
+\end{figure}
+
+Our outgoing data packet size was $276$ bytes which communicated when communicated at a rate of $10 \: \text{Hz}$ gives us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within the capabilities of a wifi connection. Inbound data to the ESP is minimal and consiting a few bytes at sporatic intervals, so we do not experience any issues with the data rate in the incoming direction.
+
+\subsubsection{State Machine}
+Our on device state management is implemeneted as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/state-machine-breakdown.png}
+    \caption[State Machine Diagram]{Outline of the state machine implemented on the microcontroller}
+    \label{fig:State_Machine}
+\end{figure}
+
+Each state corresponds to a different mode of operation for the device, details on each is outlined below:
+\begin{itemize}
+    \item \textbf{Connection}: The device waits for a handshake from the user interface. 
+    \item \textbf{Standby}: The device is connected and waits for a command to start the calibration process.
+    \item \textbf{Calibration}: The device performs a calibration routine communicating with the user interface (more detail found in Section \ref{sec:calibration}).
+    \item \textbf{Active}: The device is actively controlling the electromagnets to move the ball according to user input (more detail found in Section \ref{sec:active}).
+\end{itemize}
+
+\subsubsection{Orientation Tracking}
+A critical task in our software stack is the ability to track the orientation of the ball. This step is critical becuase this is what tells where each electromagnet is relative to the origin of the ball and this allows us to determine which magnet will need to be activated. We chose the ultize 
+
+\subsubsection{Active State}
+\label{sec:active}
+
+
+
+\subsubsection{Calibration State}
+\label{sec:calibration}
+
+
+
+
+
 
 
 \subsubsection{Tests and Results}
