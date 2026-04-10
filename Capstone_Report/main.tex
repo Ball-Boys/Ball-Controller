@@ -37,7 +37,7 @@
     \centering
     \vspace*{0.5cm}
     {\LARGE \textbf{ELECTROMAGNETIC SPHERICAL ROBOT}}\\[2cm]
-    \includegraphics[width=0.5\textwidth]{Kris_Visuals/Title_Page_Image.png}\\[1cm]
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/Full_Ball_Two_Halves.jpg}\\[1cm]
     Josh Bauman\\
     Lucas Henderson\\
     Kristopher Kirkwood\\
@@ -59,14 +59,13 @@
 
 \newpage
 \subsection*{Executive Summary}
-Our team has investigated the feasibility of developing a spherical robot capable of rolling along a steel surface using only internal electromagnets for propulsion and control. Over the past year, we successfully created a prototype disk that demonstrates how four electromagnets can reliably generate sufficient and controllable force to produce predictable motion.
+This report details the development of an untethered spherical robot that utilizes internal electromagnets for propulsion and directional control along a steel surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
-We evaluated electromagnet shapes, sizes, and core designs using a two-dimensional rotating test stand. Using the test results, we designed an electromagnet that can scale effectively into a spherical configuration. Our control circuitry regulates currents to individual electromagnets, enabling independent operation and generating the required torque for controlled movement.
+An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
-A notable limitation encountered was the prototype's substantial weight, resulting in significant rotational inertia that restricts rapid directional changes. Despite this challenge, our functional rotating test stand clearly demonstrates the viability and scalability of our concept.
+Transitioning to the 3D geometry introduced significant spatial and weight constraints. While the previous test stand relied on an external power supply, managing the onboard power requirements became a design challenge for the full sphere.
 
-Based on our successful demonstration, continued investment in this project is justified and will yield a fully operational spherical robot.
-
+Although the 20-magnet configuration successfully demonstrates the viability of electromagnetic propulsion, system performance is currently limited by its power-to-weight ratio. Testing indicates that to achieve rapid directional changes and higher torque, future iterations will require the integration of higher-capacity batteries and an increased magnet density for a higher resolution of movement.
 
 % Preliminary pages with Roman numerals
 \pagenumbering{roman}
@@ -103,50 +102,34 @@ Conventional motors use electrical currents, conductive windings, and magnetic m
     \label{fig:SRM_Diagram}
 \end{figure}
 
-Our sponsor, the Project Lab, challenged our team to invert the traditional concepts of a switched reluctance motor, and design a spherical robot which uses internal electromagnets to generate controlled rolling motion along a ferromagnetic surface. Comparing the operation to an SRM, the stator becomes our robot, and the rotor becomes the ferromagnetic surface which our robot moves along. Torque and therefore motion is produced from the system’s natural tendency to minimize the reluctance (air gap) between the energized electromagnet and the ferromagnetic surface. The electromagnets inside the robot will be individually controlled to manage the sphere's position and rotational speed.
+Our sponsor, the Project Lab, challenged our team to invert the traditional concepts of a switched reluctance motor, and design a spherical robot which uses internal electromagnets to generate controlled rolling motion along a ferromagnetic surface. Comparing the operation to an SRM, the stator becomes our robot, and the rotor becomes the ferromagnetic surface which our robot moves along. Torque and therefore motion is produced from the system’s natural tendency to minimize the reluctance (air gap) between the energized electromagnet and the ferromagnetic surface. The electromagnets inside the robot are individually controlled to manage the sphere's position and rotational speed.
 
-As shown in Figure \ref{fig:Sphere_Torque_Generation}, when an individual electromagnet is powered, it generates a magnetic field (blue), which magnetizes the ferromagnetic surface, resulting in an attractive force downward. The force creates a torque, rotating the ball forward, as if it was being pushed on. All necessary electronics, power supplies, sensors, and control devices will be contained within the body of the robot. This inverted approach allows us to apply magnetic circuit theory, develop power electronic systems, and implement advanced control algorithms in the context of a challenging and unconventional engineering problem. Concepts drawn from traditional reluctance motors aided in our design, however we did not see any projects similar to this during our research.
+As shown in Figure~\ref{fig:Sphere_Torque_Generation}, when an individual electromagnet is powered, it generates a magnetic field (blue), which magnetizes the ferromagnetic surface, resulting in an attractive force downward. The force creates a torque, rotating the ball forward. All necessary electronics, power supplies, sensors, and control devices are contained within the body of the robot. This inverted approach allows us to apply magnetic circuit theory, develop power electronic systems, and implement advanced control algorithms in the context of a challenging and unconventional engineering problem. Concepts drawn from traditional reluctance motors aided in our design, however we did not see any projects similar to this during our research.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.4\textwidth]{Kris_Visuals/Ball_torque_image.png}
+    \includegraphics[width=0.8\textwidth]{Kris_Visuals/Ball_torque_image2.png}
     \caption[Torque Generation of Sphere]{The electromagnets around the ball create an attractive force to the ferromagnetic surface (orange arrow), resulting in a rotation about its center (red arrow)}
     \label{fig:Sphere_Torque_Generation}
 \end{figure}
 
-To reduce project risk and aid in early-stage design, we focused our initial efforts on developing a simplified physical prototype: a disk that rotates on a fixed test stand above a ferromagnetic plate. Rather than directly developing a spherical robot, we chose this disk configuration since it preserves the key system dynamics of the sphere while eliminating the complexity presented by spherical geometry and space constraints. This allowed us to focus on validating magnet designs, build and test the driving electronics, and prototype control software in a more manageable, two-dimensional setup. Because this disk maintains the dynamics present in the spherical case, our design efforts into the disk should be directly transferable to a spherical robot. This year we made and mounted four electromagnets (Figure \ref{fig:4EM Stand}), and were able to control basic motion using the microcontroller.
+To reduce project risk and aid in early-stage design, we focused our initial efforts on developing a simplified physical prototype: a disk that rotates on a fixed test stand above a ferromagnetic plate. This allowed us to focus on validating magnet designs, build and test the driving electronics, and prototype control software in a more manageable, two-dimensional setup. For more information on last year’s prototype, see the Project 2507 report~\cite{2507_report}.
 
-\begin{figure}[H]
-    \centering
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[width=0.9\textwidth]{Kris_Visuals/Eight EM.png}
-        \caption[Testing Stand]{Reducing the design to a two-dimensional disk reduces the complexity while maintaining system dynamics.}
-        \label{fig:Disk_on_test_stand}
-    \end{minipage} \hfill
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[width=0.6\textwidth]{Kris_Visuals/Final_4EM_Stand.jpg}
-        \caption[Four Magnet Disk]{This is the current state of our test stand, with four of eight magnets mounted on the disk.}
-        \label{fig:4EM Stand}
-    \end{minipage}
-\end{figure}
-
-
+Building on our previous work, this year we focused on system design, manufacturing, integration, and control. An optimal magnet design was chosen and twenty cores and coils were manufactured, along with twenty identical current control circuits. These isolated electromagnet subsystems were then integrated into a spherical shell geometry, along with the intertial measurement unit (IMU), microcontroller, and batteries. A control architecture was developed to use the IMU data to determine the sphere’s orientation and activate the appropriate electromagnets to maintain motion. Finally, we tested the system’s performance and identified key areas for improvement in future iterations.
 
 \section{Discussion}
 \subsection{System Level Overview}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{Diagrams and Images/SLD.png}
+    \includegraphics[width=0.5\textwidth]{Diagrams and Images/work_in_progress.png}
     \caption[System level Diagram]{Overview of our system}
     \label{fig:SLD}
 \end{figure}
 
-Our goal is to develop a disk that has eight electromagnets positioned around its outer edge, each with its own dedicated driving circuit. Every driving circuit receives power from the main power supply and communicates with the microcontroller. At a system level, the design is a repeated pattern of four basic components: the electromagnet, the driving circuit, the power connection, and the microcontroller interface. 
+Our goal was to develop a sphere that has twenty electromagnets positioned around near its surface, each with its own dedicated driving circuit. Every driving circuit receives power from the main power supply and communicates with the microcontroller. At a system level, the design is a repeated pattern of four basic components: the electromagnet, the driving circuit, the power connection, and the microcontroller interface. 
 
-By breaking the system down into these components, we were able to design and test each one in isolation. This modular approach allowed us to develop the electromagnet prototype independently, while simultaneously creating and refining the driving circuit in parallel.
+By breaking the system down into these components, we were able to design and test each one in isolation. This modular approach allowed us to develop the electromagnets independently, while creating and refining the driving circuit in parallel.
 
 
 \subsection{Electromagnet}
@@ -154,71 +137,16 @@ By breaking the system down into these components, we were able to design and te
 
 The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent steel plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
 
-The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. The magnetic flux in a magnetic circuit is given by:
-
-\[
-\Phi = \frac{MMF}{\mathcal{R}} \propto \frac{NI}{\mathcal{R}}
-\]
-
-where $N$ is the number of coil turns, $I$ is the current, and $\mathcal{R}$ is the total reluctance of the magnetic circuit.
-
-The magnetic reluctance depends on both material properties and geometry:
-
-\[
-\mathcal{R} = \frac{l}{\mu A}
-\]
-
-where $l$ is the length of the magnetic path, $\mu$ is the magnetic permeability, and $A$ is the cross-sectional area. The majority of reluctance typically arises from air gaps; minimizing this air gap is therefore critical to maximizing force output.
-
-\subsubsection*{Electromagnet Parameters and Trade-offs}
-
-The main limitations in our electromagnet design are heat and saturation. The force is directly proportional to $NI$, while resistive heat generated is equal to $I^2R$.
-
-Wire gauge affects both electrical and thermal behavior. Larger wire gauge increases heat dissipation but makes core wrapping more difficult.
-
-Higher current increases MMF, but also quadratically increases resistive heating and may exceed thermal limits. The number of turns increases MMF as much as current does, but only increases resistive heating linearly. Therefore, for a given wire gauge, a design with more turns and lower current would be preferred, though this is constrained by spatial limitations.
-
-\subsubsection{Core Design}
-
-Ferromagnetic materials like soft steel are used for cores due to their high permeability, which helps to guide and concentrate magnetic flux. Shaping the core to provide a clear magnetic circuit reduces overall reluctance and increases flux density at the steel plate, increasing the force. The design of the electromagnet core plays a critical role in the system's performance, especially in directing magnetic flux and minimizing losses through air. Throughout development, we explored three distinct core geometries: cylindrical, horseshoe, and trident. Each offered trade-offs between magnetic efficiency, geometric compatibility, and control stability.
-
-\textbf{Cylinder Core}\\
-The cylinder (Figure \ref{fig:CYL}) was our simplest and earliest iteration. It consists of a straight ferromagnetic rod with a surrounding coil, producing a mostly uniform magnetic field along its axis.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.3\textwidth]{CAD_Visuals/cylinder.png}
-    \caption[Horseshoe]{Representation of cylinder core and its flux paths}
-    \label{fig:CYL}
-\end{figure}
-
-This configuration is easy to manufacture, and it is the most basic electromagnet shape, making it attractive for early-stage prototyping. However, the magnetic performance is severely limited. A significant portion of the magnetic flux escapes into the surrounding air due to the open-loop nature of the magnetic path, resulting in poor coupling with the steel plate. This inefficiency is especially pronounced at higher disk angles, where the air gap between the core and the plate increases. The resulting force output would be very weak, which highlighted the need for a more flux-conserving geometry that follows concepts of magnetic circuits.
-
-\textbf{Horseshoe Core}\\
-The horseshoe (Figure \ref{fig:HRS}) design closes the magnetic path more effectively. It directs the flux towards the steel plate on both sides, substantially reducing the air gap.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.3\textwidth]{CAD_Visuals/horseshoe.png}
-    \caption[Cylinder]{Representation of horseshoe core and its flux paths}
-    \label{fig:HRS}
-\end{figure}
-
-The magnetic flux is better contained, which results in stronger attractive forces and improved efficiency. However, this geometry introduces a different challenge: the presence of two symmetric equidistant poles creates two distinct "settling points."
-
-The center of the magnet becomes an unstable equilibrium, where it will repel towards one of the settling points. This would complicate precise torque control and introduce unpredictable behavior near the midpoint, which necessitated further refinement.
-
-\textbf{Trident Core}\\
-The trident (Figure \ref{fig:TRI}) design retains the magnetic advantages of the horseshoe while addressing its stability drawbacks. With a central pole flanked by two return paths (“prongs”), it provides strong, focused magnetic flux while ensuring a single, centralized settling point.
+The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we can minimize the air gap between the electromagnet and the steel plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Noteably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a singular location for the flux to be concentrated, which helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.3\textwidth]{CAD_Visuals/trident.png}
-    \caption[Trident]{Representation of trident core and its flux paths}
-    \label{fig:TRI}
+    \includegraphics[width=0.5\textwidth]{Kris_Visuals/2026_Magnet_CAD.png}
+    \caption[2026 Magnet Design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
 \end{figure}
 
-This design is more suitable for spherical integration compared to the horseshoe design. Overall, the trident design emerged as the most promising solution, as it appears to balance magnetic performance and controllability, with the only downside being that it is more complex to fabricate and wind. We decided that the main designs we wanted to test are the horseshoe and the trident.
+\subsubsection{Core Design}
+TODO: Delete at end.
 
 \subsubsection{Manufacturing}
 \begin{figure}[h]
@@ -537,9 +465,18 @@ Although motion control currently performs as expected, the power supplies exhib
 \end{enumerate}
 
 \section{References}
+\begin{thebibliography}{9}
+
+\bibitem{2507_report} 
+Josh Bauman, Logan Underwood, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
+
+\bibitem{Jenkins}
 Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance motors.} Charged EVs. Retrieved April 8, 2025, from https://chargedevs.com/features/a-closer-look-at-switched-reluctance-motors/
 
+\bibitem{ChatGPT}
 OpenAI. (2025). \textit{ChatGPT} (April 6, 2025). https://www.openai.com/chatgpt
+
+\end{thebibliography}
 \newpage
 
 \appendix
