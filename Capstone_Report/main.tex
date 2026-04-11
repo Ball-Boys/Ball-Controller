@@ -329,18 +329,21 @@ Our IMU selection was determined using a stable drift test. In this test, we pla
 
 \subsubsection{Magnet Selection}
 \label{sec:magnet_selection}
-The controller transforms the desired world-frame force ($\vec{F}_{\text{world}}$) and the gravity vector into the ball's local body frame using the rotation matrix $R$:
+To control the rolling motion of the sphere, the system must continuously generate a desired force vector in the global reference frame ($\vec{F}_{\text{world}}$). The user's joystick input dictates a desired two-dimensional velocity. A Proportional-Integral-Derivative (PID) controller compares this input against the sphere's current estimated velocity to calculate the kinematic error, $\vec{e}(t) = \vec{v}_{\text{desired}} - \vec{v}_{\text{current}}$. 
+
+By minimizing this velocity error, the controller outputs the required global corrective force:
 \begin{equation}
-    \vec{F}_{\text{body}} = R^T \vec{F}_{\text{world}}, \quad \vec{g}_{\text{body}} = R^T \begin{bmatrix} 0 \\ 0 \\ -1 \end{bmatrix}
+    \vec{F}_{\text{world}} = K_p \vec{e}(t) + K_i \int_{0}^{t} \vec{e}(\tau) d\tau + K_d \frac{d\vec{e}(t)}{dt}
 \end{equation}
 
-To select magnets, the system projects each candidate's force vector orthogonally to gravity ($\vec{v}_i$). It evaluates individual magnets and pairs by minimizing a cost function that balances kinematic error against an electrical current ($I_j$) penalty ($\lambda$):
+To actuate the required electromagnets, $\vec{F}_{\text{world}}$ and the global gravity vector are first transformed into the ball's local body frame ($\vec{F}_{\text{body}}$ and $\vec{g}_{\text{body}}$) using the rotation matrix derived from the IMU's quaternion.
+
+For each magnet, the algorithm evaluates its angle relative to $\vec{g}_{\text{body}}$ to determine available torque capacity, and projects its force vector orthogonally to gravity ($\vec{v}_i$). To find the optimal combination of magnets to match the desired force, the system evaluates both individual candidates and pairs by minimizing a cost function. This function balances the target force error against an electrical current ($I_j$) penalty ($\lambda$):
 \begin{equation}
     \text{Score} = \left\| \vec{F}_{\text{body}} - \sum_{j} (\vec{v}_j I_j) \right\| + \lambda \sum_{j} I_j
 \end{equation}
 
-The combination (single or pair) with the lowest score is activated. To protect the hardware, all commanded currents are strictly capped at the core's maximum limit ($I_{\text{max}}$).
-
+The combination (single or pair) that yields the lowest score is selected for activation. Finally, to protect the hardware and ensure predictable linear behavior, all commanded currents are strictly capped at the core's maximum saturation limit ($I_{\text{max}}$).
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
 (TODO fill out later Logan)
