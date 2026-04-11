@@ -246,7 +246,7 @@ We selected the HCPL-7520 amplifier due to having good common mode voltage rejec
 As discussed in the theory section, our circuit must provide a path for current to continue to flow when switched off. This is crucial to protect circuit components from inductor kickback but also to maintain smooth and controllable current through the electromagnet. We solved this problem by placing a diode between the low side of the electromagnet and the supply as seen in Figure 18 We used the SBX3040-3G schottky diode rated for 40 V and 30 A, which meets our requirements.
 
 \subsection{Software Architecture}
-The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
+The software connects all the balls magnets and orientation sensing components. This section will discuss the high level goals of the software and will discuss the implementation details of the system. 
 
 \subsubsection{Background}
 The high level goal of the software is to cooridnate the current going throiugh each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: location of each magnet relative to the origin of the ball, selection of which magnet to activiate, and calibration between the joystick and the ball. 
@@ -310,9 +310,9 @@ There are a couple of popular methods for rotation tracking, 2 common approaches
     \label{fig:angle_tracking_options}
 \end{figure}
 
-An interntial measurment unit (IMU) can be used to update the rotation quaternion $q$ in real time. The quaternion can be calculated by using a famous Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer outputting a quaternion representing the current state of the ball \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}
+An interntial measurment unit (IMU) can be used to update the rotation quaternion $q$ in real time. The quaternion can be calculated by using a famous Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer outputting a quaternion representing the current state of the ball \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}.
 
-With the quaternion representing the current orientation of the ball, we can determine the location of the magnets relative to the origin of the ball. Critically using the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame, which is critical allows to align the magnet locations with the joystick input. The rotation of a vector $\vec{v}$ by a quaternion $q$ can be calculated using the following formula:
+Our selected IMU, provides us with current orientation "game vector" ($q$) every $100 \text{Hz}$. The game vector is sent over $I^2C$. With the quaternion representing the current orientation of the ball, we can determine the location of the magnets relative to the origin of the ball. Critically using the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame, which is critical allows to align the magnet locations with the joystick input. The rotation of a vector $\vec{v}$ by a quaternion $q$ can be calculated using the following formula:
 
 \begin{equation}
     \vec{v}_{\text{rotated}} = q \vec{v} q^{-1}
@@ -345,11 +345,12 @@ TODO (left for LEVI)
 
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
-(TODO fill out later Logan)
+(TODO: connect this to Josh's comments)
+Given a magnet and a current setpoint, we use a simple PI controller to select the appropriate duty cycle for the current. Since we are often required to control the current through multiple magnets simultanesly, we run a series of PI controllers in series. These series operation allows us to not overload the SPI and I2C communication lines. The series approach doubled our control loop time but we found that we were able to achieve stable control since the system dynamics are governed by intertia and not speed of the control loop.
 
 \subsubsection{Active State}
 \label{sec:active}
-In the active state, our ESP runs to seperate processes, one on each core on the esp. One core is responable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
+In the active state, our ESP runs 2 seperate processes, one on each core on the esp. One core is responable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
 
 The two cores communicate through a globally shared object that contains the current state of the system. All shared memory is protected by mutexes to prevent race conditions between cores. More detail on the shared data between cores can be found in (appendix TODO: add section on shared data).
 
@@ -383,11 +384,6 @@ Our process for calibration is as follows:
     \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
     \item The ball sets the yaw offset between the magnet and the joystick direction. The offset is then applied to all future joystick commands.
 \end{enumerate}
-
-
-
-
-
 
 
 \subsubsection{Tests and Results}
