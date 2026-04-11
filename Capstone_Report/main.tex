@@ -428,13 +428,46 @@ Our IMU selection was determined using a stable drift test. In this test, we pla
 \label{sec:magnet_selection}
 TODO (left for LEVI)
 
+\subsubsection{Magnet Current Control}
+\label{sec:magnet_current_control}
+(TODO fill out later Logan)
+
 \subsubsection{Active State}
 \label{sec:active}
+In the active state, our ESP runs to seperate processes, one on each core on the esp. One core is responable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
+
+The two cores communicate through a globally shared object that contains the current state of the system. All shared memory is protected by mutexes to prevent race conditions between cores. More detail on the shared data between cores can be found in (appendix TODO: add section on shared data).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/core-1-loop.png}
+    \caption[Active State Diagram]{A diagram outlining the control flow in core 1 loop during the active state.}
+    \label{fig:Active_State_Diagram}
+\end{figure}
+
+The control loop is run on core 1 with the watchdog turned off to allow us to run our fast loop at $3.33 \text{KHz}$. Every 10 milliseconds, the algorithm checks for new orientation data from the IMU. The magnet selection algorothm runs using the new locations of each magnet in the world reference frame and the most recent joystick command. Note the joystick commands will updated by the loop in core 0 responsible for communication with the dashboard. After the maximum of 2 magents are selected and the current targets for the selected magnets are updated, the fast current loop is run with the updated current targets. 
+
+The communication loop on core 0 is responsible for receiving data from the dashboard and sending data back to the dashboard. The outbound data is sent at a rate of $10 \text{Hz}$ and contains the following state variables from the global state object:
+\begin{itemize}
+    \item Current orientation of the ball (quaternion)
+    \item Current target for each magnet
+    \item Current (and timestamp) through each magnet
+\end{itemize}
+The inbound data from the dashboard uses a polling architecture. When a new direction command is recived from the dashboard, the communication loop updates the global state with the new command. As described earlier, the control loop on core 1 will read this new command on its next loop. The inbound and outbound data loops run as seperate threads.
+
 
 
 
 \subsubsection{Calibration State}
 \label{sec:calibration}
+The calibration between the direction of the joystick and the direction IMU direction. Illustruvely, imagine setting the joystick the point north. In this case, the ball would have no ability to know which direction the joystick is pointed relative to the internal coordinates of the ball. Our calibration step is designed to help align the pair of coordinate systems. 
+
+Our process for calibration is as follows:
+\begin{enumerate}
+    \item The magnet with the largest force vector is selected and turned on at $12 \text{amps}$ for 1 second.
+    \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
+    \item The ball sets the yaw offset between the magnet and the joystick direction. The offset is then applied to all future joystick commands.
+\end{enumerate}
 
 
 
