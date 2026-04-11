@@ -235,7 +235,12 @@ As discussed in the theory section, our circuit must provide a path for current 
 The software connects all the balls magnets and orientation sensing components. This section will discuss the high level goals of the software and will discuss the implementation details of the system. 
 
 \subsubsection{Background}
-The high level goal of the software is to cooridnate the current going throiugh each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: location of each magnet relative to the origin of the ball, selection of which magnet to activiate, and calibration between the joystick and the ball. 
+The high level goal of the software is to coordinate the current going through each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: 
+\begin{enumerate}
+    \item Location of each magnet relative to the origin of the ball
+    \item Selection of which magnet to activate
+    \item Calibration between the joystick and the ball. 
+\end{enumerate}
 
 \begin{figure}[h]
     \centering
@@ -244,11 +249,11 @@ The high level goal of the software is to cooridnate the current going throiugh 
     \label{fig:Software_Overview}
 \end{figure}
 
-The software will be running on the ball and our dashboard interfacing together to create a cohesive experince for the user. 
+The ball and dashboard software integrates to create a cohesive experience for the user. 
 
 
 \subsubsection{Data Communication Overview}
-The first important challenge is to figure out how the different components of our system will interact and pass data in between. Since our ball will rotate omnidirectionally, a wired data trasmission makes little sense. We choose to implement a wifi based communication hosted on the ESP that the dahsboard would connect to. 
+Since our ball will rotate omnidirectionally, a wired data transmission makes little sense. We choose to implement a Wi-Fi based communication hosted on the ESP that the dashboard would connect to. 
 
 \begin{figure}
     \centering
@@ -257,10 +262,10 @@ The first important challenge is to figure out how the different components of o
     \label{fig:Communication_Diagram}
 \end{figure}
 
-Our outgoing data packet size was $276$ bytes which communicated when communicated at a rate of $10 \: \text{Hz}$ gives us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within the capabilities of a wifi connection. Inbound data to the ESP is minimal and consiting a few bytes at sporatic intervals, so we do not experience any issues with the data rate in the incoming direction.
+Our outgoing data packet size was $276$ bytes communicated at a rate of $10 \: \text{Hz}$ gives us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within abilities of Wi-Fi data transmission. Inbound data to the ESP small consisting a few bytes at sporadic intervals, so they do not meaningfully contribute to the data rate.
 
 \subsubsection{State Machine}
-Our on device state management is implemeneted as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
+Our on device state management is implemented as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
 
 \begin{figure}[h]
     \centering
@@ -278,9 +283,9 @@ Each state corresponds to a different mode of operation for the device, details 
 \end{itemize}
 
 \subsubsection{Orientation Tracking}
-A critical task in our software stack is the ability to track the orientation of the ball. This step is critical becuase this is what tells where each electromagnet is relative to the origin of the ball and this allows us to determine which magnet will need to be activated. Stated simply, we need a way to track the rotational state of the ball.
+We need to know the orientation of the ball to know where each electromagnet is relative to the origin of the ball. The magnet location information allows us to determine which magnet need to be activited. 
 
-There are a couple of popular methods for rotation tracking, 2 common approaches (Euler angles and quaternions) are outlined in Figure \ref{fig:angle_tracking_options}. We chose to implement the quaternion approach since it does not suffer from gimbal lock and it more computational effiecent to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach. For more detail on quaternions see appendix (TODO: add section of quaternions).
+There are a couple of popular methods for rotation tracking, 2 common approaches include Euler angles and quaternions, outlined in Figure \ref{fig:angle_tracking_options}. We chose to utlize the quaternions since it does not suffer from gimbal lock and it is more computational effiecent to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach.
 \begin{figure}[h]
     \begin{minipage}{0.49\textwidth}
         \centering
@@ -296,16 +301,16 @@ There are a couple of popular methods for rotation tracking, 2 common approaches
     \label{fig:angle_tracking_options}
 \end{figure}
 
-An interntial measurment unit (IMU) can be used to update the rotation quaternion $q$ in real time. The quaternion can be calculated by using a famous Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer outputting a quaternion representing the current state of the ball \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}.
+An interntial measurment unit (IMU) is used to determine the rotation quaternion $q$. Using the Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer, we get a quaternion for the \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}.
 
-Our selected IMU, provides us with current orientation "game vector" ($q$) every $100 \text{Hz}$. The game vector is sent over $I^2C$. With the quaternion representing the current orientation of the ball, we can determine the location of the magnets relative to the origin of the ball. Critically using the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame, which is critical allows to align the magnet locations with the joystick input. The rotation of a vector $\vec{v}$ by a quaternion $q$ can be calculated using the following formula:
+Our selected IMU, provides us with current orientation "game vector" ($q$) every $100 \text{Hz}$. The game vector is sent over $I^2C$. Critically the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame. The arbitrary rotation of a vector $\vec{v}$ in a body with a rotational state $q$ can be calculated using the following formula:
 
 \begin{equation}
     \vec{v}_{\text{rotated}} = q \vec{v} q^{-1}
     \label{eqn:magnet_rotation}
 \end{equation}
 
-By utilizing the above formula and the known locations of the magnets in the ball's reference frame we are able to determine the location of each magnet in the world reference frame. 
+By utilizing the above formula and the known locations of the magnets in the ball's reference frame, the location of the magnets in the world reference frame is given by the following formula:
 
 \begin{equation}
     \begin{aligned}
@@ -321,9 +326,9 @@ By utilizing the above formula and the known locations of the magnets in the bal
 
 \subsubsection*{IMU Selection}
 \label{sec:IMU_selection}
-There were severel IMU options we considered for this project. We ultimetely selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
+There were several IMU options we considered for this project. We selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
 
-Our IMU selection was determined using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes. We found that the FSM300 had a $10^5$ times lower drift than the BN09X (the cheaper alternative).  
+Our IMU performance was analyzed using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes. We found that the FSM300 had a $10^5$ times lower drift than the BN09X, a cheaper alternative.  
 
 \subsubsection{Magnet Selection}
 \label{sec:magnet_selection}
@@ -332,11 +337,11 @@ TODO (left for LEVI)
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
 (TODO: connect this to Josh's comments)
-Given a magnet and a current setpoint, we use a simple PI controller to select the appropriate duty cycle for the current. Since we are often required to control the current through multiple magnets simultanesly, we run a series of PI controllers in series. These series operation allows us to not overload the SPI and I2C communication lines. The series approach doubled our control loop time but we found that we were able to achieve stable control since the system dynamics are governed by intertia and not speed of the control loop.
+Given a magnet and a current set point, we use a simple PI controller to select the appropriate duty cycle for the current. Since we are often required to control the current through multiple magnets simultaneously, we run a sequence PI controllers in series. The series operation prevents  overloading the SPI and I2C communication lines with reads and writes. Although the approach doubles the latency of the control loop, it does not negatively impact the macro control properties.
 
 \subsubsection{Active State}
 \label{sec:active}
-In the active state, our ESP runs 2 seperate processes, one on each core on the esp. One core is responable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
+In the active state, our ESP runs 2 separate processes, one on each core on the esp. One core is reasonable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
 
 The two cores communicate through a globally shared object that contains the current state of the system. All shared memory is protected by mutexes to prevent race conditions between cores. More detail on the shared data between cores can be found in (appendix TODO: add section on shared data).
 
@@ -347,24 +352,22 @@ The two cores communicate through a globally shared object that contains the cur
     \label{fig:Active_State_Diagram}
 \end{figure}
 
-The control loop is run on core 1 with the watchdog turned off to allow us to run our fast loop at $3.33 \text{KHz}$. Every 10 milliseconds, the algorithm checks for new orientation data from the IMU. The magnet selection algorothm runs using the new locations of each magnet in the world reference frame and the most recent joystick command. Note the joystick commands will updated by the loop in core 0 responsible for communication with the dashboard. After the maximum of 2 magents are selected and the current targets for the selected magnets are updated, the fast current loop is run with the updated current targets. 
+The control loop is run on core 1 with the watchdog turned off to allow us to run our fast loop at $3.33 \text{KHz}$. Every 10 milliseconds, the algorithm checks for new orientation data from the IMU. The magnet selection algorithm runs using the new locations and the most recent joystick command. After 2 magnets and their current targets are updated, the logic returns to the fast current loop is run with the updated current targets. 
 
-The communication loop on core 0 is responsible for receiving data from the dashboard and sending data back to the dashboard. The outbound data is sent at a rate of $10 \text{Hz}$ and contains the following state variables from the global state object:
+The communication loop on core 0 is responsible for receiving data from the dashboard and sending data back to the dashboard. The outbound data is sent at a rate of $10 \text{Hz}$ and contains the following state variables:
 \begin{itemize}
     \item Current orientation of the ball (quaternion)
     \item Current target for each magnet
     \item Current (and timestamp) through each magnet
 \end{itemize}
-The inbound data from the dashboard uses a polling architecture. When a new direction command is recived from the dashboard, the communication loop updates the global state with the new command. As described earlier, the control loop on core 1 will read this new command on its next loop. The inbound and outbound data loops run as seperate threads.
+The inbound data from the dashboard uses a polling approach. When a new direction command is received from the dashboard, the communication loop updates the global state with the new command.
 
 
 
 
 \subsubsection{Calibration State}
 \label{sec:calibration}
-The calibration between the direction of the joystick and the direction IMU direction. Illustruvely, imagine setting the joystick the point north. In this case, the ball would have no ability to know which direction the joystick is pointed relative to the internal coordinates of the ball. Our calibration step is designed to help align the pair of coordinate systems. 
-
-Our process for calibration is as follows:
+The connection between the direction of the joystick and the local axis of the ball is challenging to connect. Our calibration step is designed to help align the pair of coordinate systems, and is as follows:
 \begin{enumerate}
     \item The magnet with the largest force vector is selected and turned on at $12 \text{amps}$ for 1 second.
     \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
