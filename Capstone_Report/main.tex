@@ -153,9 +153,9 @@ TODO: Delete at end.
 \subsubsection{Manufacturing}\label{sec: mag manufacturing}
 To build each of the twenty electromagnets, we first waterjet cut the cores from steel plates, and then wound copper coils using a winding jig and custom mounts and sleeves. The mass and resistance of each magnet was measured and recorded to ensure consistency.
 
-\subsection{Driving Circuitry}
+\subsection{Magnet Driver Electronics}
 
-\subsubsection{Theory}
+\subsubsection{High Level Architecture}
 The electronics in our system play a critical role in enabling control of the electromagnetic forces that drive the robot’s motion. 
 The attractive force produced by a given electromagnet is directly related to the current flowing through it, so independent control of the current in each electromagnet is necessary to achieve force modulation and controlled motion. 
 
@@ -178,39 +178,28 @@ Figure \ref{fig:Schematic} shows the high level architecture used to implement t
 \end{figure}
 
 \subsubsection{Design}
-Equipped with an understanding of the circuit’s requirements, and the underlying physical phenomena, we can put together the high-level architecture of the driving circuit to be used by each electromagnet. 
+The final schematic 
 
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.4\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
     \caption[Schematic]{High level driving circuit schematic}
     \label{fig:kiCadSchematic}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.4\textwidth]{Diagrams and Images/driverPCB.png}
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/driverPCB.png}
     \caption[PCB]{High level driving circuit PCB}
     \label{fig:kiCadPCB}
 \end{figure}
 
-
-The high level architecture in Figure \ref{fig:Schematic} can be broken down further into subsections to look at implementation specifics in more detail.
-
 \textbf{Power}\\
-Our circuit requires three distinct voltage levels to support the various subsystems. The electromagnets must be supplied by a higher voltage rail to deliver the large current necessary for actuation. According to Equation \ref{eqn:voltage_eq} a higher supply voltage also increases the rate at which current can rise through the electromagnets, improving responsiveness. As demonstrated in the ‘magnet testing section’ we found using a 24 V supply was sufficient to source currents in the 20 A range which was what we opted to rate our circuit for.  
-
-To ensure fast switching, the gate driver is supplied with 15 V. This rail does not need to be rated for high currents.
-
-Finally, the current sense amplifiers require dual 5 V supplies with isolated grounds. This isolation helps reduce measurement noise since the shunt is connected to a high power rail.
+Each current driver requires two voltage supply levels to support its operation. The electromagnets must be supplied with high enough voltage to deliver currents in the range of 10-15A (based on magnet testing and determined magnet force requirements) through a \~1 $\Omega$ load (electromagnet series resistance). Additionally, according to Equation \ref{eqn:voltage_eq} a higher supply voltage will increase the rate at which current can rise through the electromagnets, improving responsiveness. To balance battery size and performance, a 14.7 V rail was determined to be sufficient. A 3.3 V supply is also required to power the current sense amplifier. This is supplied by the ESP32's internal voltage regulator, to ensure proper referenceing between the amplifier and the microcontroller.
 
 \textbf{Switching Stage}\\
-The switching stage involves a power MOSFET (switch S1 in Figure \ref{fig:Schematic}) switching high currents at high frequencies. Power MOSFETs are standard for switching applications like this. As efficiency is not the main focus, selecting a MOSFET involves meeting a few baseline criteria. It must handle a drain-source voltage, $\text{V}_{\text{ds}}$, at least equal to the magnet supply voltage, with margin for inductive small transients. It must also support a continuous drain-source current, Ids, above the maximum current through the electromagnets, and have low on-resistance, $\text{R}_{\text{ds(on)}}$, at our switching frequencies. We used low-side switching to simplify gate driving, limiting the choice to N-channel FETs. The IRFZ44N was selected for being readily available, with a $\text{V}_{\text{ds}}$ rating of 55~V, $\text{I}_{\text{ds}}$ rating of 49~A, and suitably low $\text{R}_{\text{ds(on)}}$.
-
-To switch the MOSFET quickly and efficiently, we placed a gate driver between the controller and the gate of each MOSFET. The gate driver provides sufficient current to charge and discharge the gate quickly so that the MOSFET spends less time in the region between being fully on and fully off, minimizing heat dissipation and losses. It also protects the microcontroller from having to source or sink more current than it is rated for. For this we used the TI UCC2742 as it provided a dual channel driver with performance that met our requirements.
-
-The switching frequency was chosen to balance losses and current ripple. A low frequency would allow current to rise and fall significantly between PWM cycles, reducing control precision. We found 4~kHz gave good control resolution without significant heating. The MOSFET showed notable heating above 10~kHz.
+To switch the MOSFET quickly and efficiently, we placed a gate driver between the controller and the gate of each MOSFET. The gate driver provides sufficient current to charge and discharge the gate quickly so that the MOSFET spends less time in the region between being fully on and fully off, minimizing heat dissipation and losses. It also protects the microcontroller from having to source or sink more current than it is rated for. For this we used the TI UCC2742 as it provided a dual channel driver with performance that met our requirements. The switching frequency was chosen to balance losses and current ripple. A low frequency would allow current to rise and fall significantly between PWM cycles, reducing control precision. We found 4~kHz gave good control resolution without significant heating. The MOSFET showed notable heating above 10~kHz.
 
 
 \textbf{Current Sensing}\\
@@ -230,8 +219,6 @@ A 5 m$\Omega$ shunt was selected to minimize power loss. The result of this smal
 
 We selected the HCPL-7520 amplifier due to having good common mode voltage rejection and providing opto-isolation on the output signal. Supplying the amplifier with 5 V results in a rated gain of $\sim$9.76 V/V. For positive currents, the output of the amplifier lies between 2.5 V and 5 V. This gives a measurable current range between 0 A and 53 A which for our needs is more than enough. The output from the amplifier can be used as an input to a microcontroller where the current can be computed and closed-loop feedback control on the gate of the MOSFET can be implemented.
 
-\textbf{Flyback and Protection}\\
-As discussed in the theory section, our circuit must provide a path for current to continue to flow when switched off. This is crucial to protect circuit components from inductor kickback but also to maintain smooth and controllable current through the electromagnet. We solved this problem by placing a diode between the low side of the electromagnet and the supply as seen in Figure 18 We used the SBX3040-3G schottky diode rated for 40 V and 30 A, which meets our requirements.
 
 \subsection{Software Architecture}
 The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
