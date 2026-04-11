@@ -329,7 +329,17 @@ Our IMU selection was determined using a stable drift test. In this test, we pla
 
 \subsubsection{Magnet Selection}
 \label{sec:magnet_selection}
-TODO (left for LEVI)
+The controller transforms the desired world-frame force ($\vec{F}_{\text{world}}$) and the gravity vector into the ball's local body frame using the rotation matrix $R$:
+\begin{equation}
+    \vec{F}_{\text{body}} = R^T \vec{F}_{\text{world}}, \quad \vec{g}_{\text{body}} = R^T \begin{bmatrix} 0 \\ 0 \\ -1 \end{bmatrix}
+\end{equation}
+
+To select magnets, the system projects each candidate's force vector orthogonally to gravity ($\vec{v}_i$). It evaluates individual magnets and pairs by minimizing a cost function that balances kinematic error against an electrical current ($I_j$) penalty ($\lambda$):
+\begin{equation}
+    \text{Score} = \left\| \vec{F}_{\text{body}} - \sum_{j} (\vec{v}_j I_j) \right\| + \lambda \sum_{j} I_j
+\end{equation}
+
+The combination (single or pair) with the lowest score is activated. To protect the hardware, all commanded currents are strictly capped at the core's maximum limit ($I_{\text{max}}$).
 
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
