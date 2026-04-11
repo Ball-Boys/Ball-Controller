@@ -240,50 +240,19 @@ Beyond avoiding saturation, the 16 mm core also produced higher torque across al
 \subsection{Driving Circuitry}
 
 \subsubsection{Theory}
-The electronics in our system play a critical role in enabling control of the electromagnetic forces that drive the robot’s motion. Because the attractive force produced by each electromagnet is directly related to the current flowing through it, we can control the motion of the disk by modulating these currents. At a high level, the requirements for the circuit behaviour are simple: predictably deliver and regulate high currents to the electromagnets. 
+The electronics in our system play a critical role in enabling control of the electromagnetic forces that drive the robot’s motion. 
+The attractive force produced by a given electromagnet is directly related to the current flowing through it, so independent control of the current in each electromagnet is necessary to achieve force modulation and controlled motion. 
 
-Circuits used in current control applications utilize special properties of inductors. An inductor’s ability to resist sudden changes in current make them naturally suited for use in smoothing or shaping current. Conveniently, the electromagnets in our system act as inductors themselves. Each electromagnet in the system can be modeled as a series combination of a resistance $R$ and an inductance $L$. When a constant voltage is applied across the electromagnet, the instantaneous current through it is governed by the differential equation:
-
-\begin{equation}
-V = L \frac{dI}{dt} + RI
-\label{eqn:voltage}
-\end{equation}
-
-The solutions to Equation \ref{eqn:voltage} describe the behaviour of current in both the charging and discharging cases:
-
-\begin{equation}
-    I(t) = V_0 R \left( 1 - e^{-\frac{R}{L}t} \right) \quad \text{for} \quad V = 0
-    \label{eqn:current}
-\end{equation}
-
-\begin{equation}
-    I(t) = I_0 e^{-\frac{R}{L}t} \quad \text{for} \quad V \neq0
-    \label{eqn:current_zero}
-\end{equation}
-
-
-When the applied voltage is non-zero, the current through the electromagnet rises according to Equation \ref{eqn:current}. Disconnecting the source sets $V = 0$, and the current decreases according to Equation \ref{eqn:current_zero}. In both cases the current exhibits an exponential characteristic governed by the time constant $\tau = L/R$, where larger $\tau$ corresponds to slower changes in current. The time constant of the electromagnet is important to consider in the design of our driving circuit as it defines how quickly the electromagnet can generate or remove a force. Understanding this behaviour when implementing the control software is important as it allows us to account for current lag and ensure magnetic forces are applied when needed. If we know the time constant of the electromagnet we can shift the timing of inputs slightly so the electromagnet current and force reaches target levels by the time it is required.
+Electrically, the electromagnets can be modelled as a series combination of a resistance $R$ and an inductance $L$. When a voltage is applied across an electromagnet, the current through it rises with an RL exponential characteristic and when the voltage is removed, the current falls with a similar characteristic. By rapidly switching the applied voltage on and off (with MOSFET), the current can be shaped to achieve a desired average value, forming the basis of our current control strategy. Figure \ref{fig:exampleCurrent} illustrates an example electromagnet current waveform with switching driven by a PWM signal.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.75\textwidth]{Circuit Visuals/PWM Image.png}
-    \caption[PWM Control Signal]{Example of electromagnet current control}
-    \label{fig:PWM}
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/exampleElectromagnetCurrent.png}
+    \caption[exampleCurrent]{Illustrative example of how the current through an electromagnet is modultated through the switching of an applied voltage. When the switch is closed, the current rises with an RL exponential characteristic, and when the switch is opened, the current falls an RL exponential characteristic. The average current can be modulated by changing the duty cycle of the PWM signal, and the current ripple can be reduced by increasing the PWM switching frequency.}
+    \label{fig:exampleCurrent}
 \end{figure}
 
-As seen in Figure \ref{fig:PWM}, by using pulse width modulation (PWM), we can switch the voltage applied to the electromagnet on and off at high frequencies and chain together the charging and discharging characteristics of the current. As a result, the effective current through the electromagnet is the average of this repeated waveform. By changing the duty cycle of the PWM signal we can control the average current value over time.
-
-An additional phenomenon that arises when dealing with inductors, and something our circuit must be designed to handle safely is inductor kickback. Kickback is best understood through the voltage-current relationship for an ideal inductor.
-
-\begin{equation}
-    V = L \frac{d I}{d t}
-    \label{eqn:voltage_eq}
-\end{equation}
-
-Equation \ref{eqn:voltage_eq} says that the voltage across an inductor is proportional to the rate of change of current through it. As discussed earlier, our system will control current by rapidly switching the applied voltage on and off, which effectively involves connecting and disconnecting the path between the power source, electromagnet, and ground. However, if current is flowing through the electromagnet and we suddenly break the circuit, Equation \ref{eqn:voltage_eq} says the rapid drop in current causes the inductor to generate a very large voltage spike in an attempt to keep current flowing. To avoid this, our circuit must provide a path for current to discharge when the switch is opened. Otherwise, we risk damaging circuit components.
-
-\subsubsection{Design}
-Equipped with an understanding of the circuit’s requirements, and the underlying physical phenomena, we can put together the high-level architecture of the driving circuit to be used by each electromagnet. 
+Figure \ref{fig:Schematic} shows the high level architecture used to implement this control strategy. The switching of current through an electromagnet can give rise to large voltage spikes due to inductor kickback if not handled properly. A 'flyback' diode is used to provide a path for the electromagnet current to discharge safely when the switch is opened, and to also avoid abrupt drops in current which would otherwise degrade controllability. Furthermore, the instantaneous current through the electromagnet is monitored using a shunt resistor and differential amplifier, providing feedback for closed-loop control of the current. Based on this current measurement and the desired current, an ESP32 modulates the duty cycle of the MOSFET gate PWM signal to achieve the target current. 
 
 \begin{figure}[H]
     \centering
@@ -291,6 +260,25 @@ Equipped with an understanding of the circuit’s requirements, and the underlyi
     \caption[Schematic]{High level driving circuit schematic}
     \label{fig:Schematic}
 \end{figure}
+
+\subsubsection{Design}
+Equipped with an understanding of the circuit’s requirements, and the underlying physical phenomena, we can put together the high-level architecture of the driving circuit to be used by each electromagnet. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
+    \caption[Schematic]{High level driving circuit schematic}
+    \label{fig:kiCadSchematic}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{Diagrams and Images/driverPCB.png}
+    \caption[PCB]{High level driving circuit PCB}
+    \label{fig:kiCadPCB}
+\end{figure}
+
 
 The high level architecture in Figure \ref{fig:Schematic} can be broken down further into subsections to look at implementation specifics in more detail.
 
