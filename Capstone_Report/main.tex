@@ -1,4 +1,4 @@
-\documentclass[11pt]{article} % Changed from report to article
+\documentclass[11pt]{article}
 
 % Packages
 \usepackage[margin=1in]{geometry}
@@ -10,14 +10,16 @@
 \usepackage{helvet}
 \usepackage{appendix}
 \usepackage{float}
-\usepackage[nottoc]{tocbibind}
 \usepackage{subcaption}
 \usepackage{amsmath}
 \usepackage{pdfpages}
+\usepackage[numbib]{tocbibind}
+\usepackage{url}
+
 
 
 % Font Settings
-\renewcommand{\familydefault}{\sfdefault}
+\renewcommand{\familydefault}{\sfdefault} % Use sans-serif font
 
 % Line Spacing
 \onehalfspacing
@@ -51,15 +53,15 @@
 
     Project 2507\\
     Applied Science 459\\
-    Engineering Physics Project Laboratory\\
+    Boye Ahlborn Engineering Physics Project Laboratory\\
     The University of British Columbia\\
-    April 8, 2025
+    April 12, 2025
 \end{titlepage}
 
 
 \newpage
 \subsection*{Executive Summary}
-This report details the development of an untethered spherical robot that utilizes internal electromagnets for propulsion and directional control along a steel surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
+This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a steel surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
 An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
@@ -99,7 +101,7 @@ Conventional motors use electrical currents, conductive windings, and magnetic m
     \centering
     \includegraphics[width=0.6\textwidth]{Kris_Visuals/SRM_Diagram.png}
     \caption[Switch Reluctance Motor Diagram]{A simplified diagram of a switched reluctance motor consists of a rotating ferromagnetic rotor, and powered stator poles.}
-    \label{fig:SRM_Diagram}
+~\label{fig:SRM_Diagram}
 \end{figure}
 
 Our sponsor, the Project Lab, challenged our team to invert the traditional concepts of a switched reluctance motor, and design a spherical robot which uses internal electromagnets to generate controlled rolling motion along a ferromagnetic surface. Comparing the operation to an SRM, the stator becomes our robot, and the rotor becomes the ferromagnetic surface which our robot moves along. Torque and therefore motion is produced from the system’s natural tendency to minimize the reluctance (air gap) between the energized electromagnet and the ferromagnetic surface. The electromagnets inside the robot are individually controlled to manage the sphere's position and rotational speed.
@@ -127,7 +129,7 @@ Building on our previous work, this year we focused on system design, manufactur
     \label{fig:SLD}
 \end{figure}
 
-Our goal was to develop a sphere that has twenty electromagnets positioned around near its surface, each with its own dedicated driving circuit. Every driving circuit receives power from the main power supply and communicates with the microcontroller. At a system level, the design is a repeated pattern of four basic components: the electromagnet, the driving circuit, the power connection, and the microcontroller interface. 
+Our goal was to develop a sphere that has twenty electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from the main power supply and communicates with the microcontroller. The microcontroller also receives data from the IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
 
 By breaking the system down into these components, we were able to design and test each one in isolation. This modular approach allowed us to develop the electromagnets independently, while creating and refining the driving circuit in parallel.
 
@@ -148,94 +150,8 @@ The strength of this force is directly related to the magnetic flux ($\Phi$) flo
 \subsubsection{Core Design}
 TODO: Delete at end.
 
-\subsubsection{Manufacturing}
-\begin{figure}[h]
-    \centering
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{CAD_Visuals/Sleeve.png}
-        \caption[Sleeve CAD]{Sheet metal cutout of our sleeve design}
-        \label{fig:Sleeve}
-    \end{minipage} \hfill
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{Diagrams and Images/Winding Jig.png}
-        \caption[Winding Jig]{Winding machine and custom jig (red box)}
-        \label{fig:Winding_Jig}
-    \end{minipage}
-\end{figure}
-
-Our electromagnet design requires 250 loops of copper wire to be wrapped around a solid core. Because of the core’s geometry, it was difficult to wrap the wire onto the core directly, and so we needed to create a steel sleeve that could slide onto the core (Figure \ref{fig:Sleeve}). Separating the sleeve from the core helped better contain the wires and allowed coils to be reused across different cores, as long as the central shaft geometry remained consistent, saving time and material.
-
-The sleeve was designed to contain the coil, with flanges to support the wire during winding (the additional flanges in the bottom of Figure \ref{fig:Sleeve}). A custom jig, interfacing with a standardized adapter, ensured consistent and repeatable winding (Figure \ref{fig:Winding_Jig}). Both the sleeve and core were wrapped in Kapton tape to ensure that the wire coating was not removed on sharp metal edges. The integrity of each coil was verified by measuring its electrical resistance, and once wound, the coil sleeve was slid onto the core and secured with integrated tabs. 
-
-
-\subsubsection{Test Stand}
-We developed an electromagnet design using the magnetic circuit principles, aiming to minimize reluctance, maximize the strength-to-material ratio, and avoid magnetic saturation. To evaluate each design, we built the mechanical test stand shown in Figures \ref{fig:Torque_Stand_Model} and \ref{fig:Torque_Stand_Real}. It used a load cell to measure torque output across various supply currents and angles relative to a steel plate. This data enabled direct performance comparisons and helped model torque as a function of angle and current—parameters essential for designing magnets for the sphere, which shares similar dynamics.
-
-We tested 12 electromagnets to identify the optimal core shape and winding count. A simple steel core wrapped in copper wire produced insufficient torque, leading us to a more effective “horseshoe” design. While stronger, it had an unstable equilibrium point, posing challenges for spherical applications. We therefore explored a more scalable “trident” design.
-
-\begin{figure}[H]
-    \centering
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[height=7.5cm]{Kris_Visuals/Torque_Stand_Design.png}
-        \caption[Test Stand CAD Design]{A torque sensor measured the output force of the magnets.}
-        \label{fig:Torque_Stand_Model}
-    \end{minipage} \hfill
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[height=7.5cm]{Kris_Visuals/Torque_Stand_Real.png}
-        \caption[Test Stand as Built]{The actual test stand accurately measured the torque output.}
-        \label{fig:Torque_Stand_Real}
-    \end{minipage}
-\end{figure}
-
-\subsubsection{Test Results}
-
-We evaluated the performance of each magnet design using a custom test apparatus. A Python-based interface allowed for rapid data collection and the generation of comparison plots, providing immediate feedback on relative magnet strengths.
-
- Before directly comparing magnet strengths, we verified that strength scales with the $NI$ (which we call Amp-Turns). We confirmed this by plotting torque versus Amp-Turns for 400 and 800-turn magnets; as shown in Figures \ref{fig:Torque_vs_Amp_Turns_no_trendline} and \ref{fig:Torque_vs_Amp_Turns_trendline}, the data aligned closely across both configurations. Since our power supply was not a limiting factor, we shifted focus away from winding count and toward the shape and thickness. Additionally, torque consistently increased with current regardless of the magnet’s angle. 
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{Kris_Visuals/Amp-Turns_Comparison_Dots.png}
-    \caption[Amp-Turns Comparison - No Trend line]{Comparison plot of horseshoe electromagnet test with 400 and 800 loops to determine relationship between torque and the amp-turn value.}
-    \label{fig:Torque_vs_Amp_Turns_no_trendline}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{Kris_Visuals/Amp-Turns_Comparison_Lines.png}
-    \caption[Amp-Turns Comparison]{Comparison plot of horseshoe electromagnet test with 400 and 800 loops with spline for visualization purposes.}
-    \label{fig:Torque_vs_Amp_Turns_trendline}
-\end{figure}
-
-The test setup confirmed that the horseshoe magnet was significantly stronger than the cylinder. However, the horseshoe demonstrated having multiple settling points and an unstable equilibrium point as expected. We observed this by the negative torque measurements at small angles shown by the red dots in Figure \ref{fig:Comparison Torque Plot}.
-
-To avoid this instability, we designed the trident magnet shown earlier, which we expected to be the best performing overall. The resulting torque plot for 1200 Amp-Turns is shown in blue in Figure \ref{fig:Comparison Torque Plot}. Most notably, for small angles the torque remains positive, indicating a single settling point, as desired.
-
-As shown in Figure \ref{fig:Comparison Torque Plot} the trident magnet outperformed the horseshoe magnet at all angles, and did not have problems with multiple settling points. This provides us with a high level of confidence that a trident-like core design will be most effective in the sphere.
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{Kris_Visuals/Comparison_Torque_Plot.png}
-    \caption[Horseshoe and Trident Magnet Torque Comparison]{Torque output of the trident magnet when tested at 1200 amp turns, and 20$^\circ$}
-    \label{fig:Comparison Torque Plot}
-\end{figure}
-
-\subsubsection{Saturation}
-To evaluate the performance limits of our trident magnet, we tested for magnetic flux saturation. Once saturation occurs, increasing current no longer results in greater flux and torque, making it essential to determine whether our design operated within the linear region of the material’s magnetic saturation curve. If saturation occurs, then any additional power added to the magnets is wasted. 
-
-We compared two trident cores—12 mm and 16 mm thick—each tested at a 20$^\circ$ angle relative to the steel plate. As shown in Figure \ref{fig:Saturation}, the 12 mm core saturated at approximately 1200 Amp-Turns (6.8 A), while the 16 mm version showed no signs of saturation up to 3000 Amp-Turns (14 A), our test limit. Given that the thicker core did not saturate at 14 A, we opted to design our driving circuit to be rated for up to 20 A. In doing so, we can use more of the available torque from the magnet.
-
-Beyond avoiding saturation, the 16 mm core also produced higher torque across all tested angles, indicating that increased thickness not only extends the linear operating range but improves overall performance. For our spherical design, we aim to operate just below the saturation threshold to maximize torque efficiency without adding unnecessary material and weight. 
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{Kris_Visuals/Saturation_Plot.png}
-    \caption[Impact of Material Thickness on Saturation]{Comparison of output torque due to supplied Amp-Turns between 12mm and 16mm thick steel Trident magnets.}
-    \label{fig:Saturation}
-\end{figure}
+\subsubsection{Manufacturing}\label{sec: mag manufacturing}
+To build each of the twenty electromagnets, we first waterjet cut the cores from steel plates, and then wound copper coils using a winding jig and custom mounts and sleeves. The mass and resistance of each magnet was measured and recorded to ensure consistency.
 
 \subsection{Driving Circuitry}
 
@@ -317,6 +233,150 @@ We selected the HCPL-7520 amplifier due to having good common mode voltage rejec
 \textbf{Flyback and Protection}\\
 As discussed in the theory section, our circuit must provide a path for current to continue to flow when switched off. This is crucial to protect circuit components from inductor kickback but also to maintain smooth and controllable current through the electromagnet. We solved this problem by placing a diode between the low side of the electromagnet and the supply as seen in Figure 18 We used the SBX3040-3G schottky diode rated for 40 V and 30 A, which meets our requirements.
 
+\subsection{Software Architecture}
+The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
+
+\subsubsection{Background}
+The high level goal of the software is to cooridnate the current going throiugh each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: location of each magnet relative to the origin of the ball, selection of which magnet to activiate, and calibration between the joystick and the ball. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/eye-of-god-figure.png}
+    \caption[Software Overview]{A diagram outlining the functionality hoping to be achieved by the software.}
+    \label{fig:Software_Overview}
+\end{figure}
+
+The software will be running on the ball and our dashboard interfacing together to create a cohesive experince for the user. 
+
+
+\subsubsection{Data Communication Overview}
+The first important challenge is to figure out how the different components of our system will interact and pass data in between. Since our ball will rotate omnidirectionally, a wired data trasmission makes little sense. We choose to implement a wifi based communication hosted on the ESP that the dahsboard would connect to. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/communication-diagram.png}
+    \caption[Communication Diagram]{A diagram outlining the communication between the user interface and the ball.}
+    \label{fig:Communication_Diagram}
+\end{figure}
+
+Our outgoing data packet size was $276$ bytes which communicated when communicated at a rate of $10 \: \text{Hz}$ gives us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within the capabilities of a wifi connection. Inbound data to the ESP is minimal and consiting a few bytes at sporatic intervals, so we do not experience any issues with the data rate in the incoming direction.
+
+\subsubsection{State Machine}
+Our on device state management is implemeneted as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/state-machine-breakdown.png}
+    \caption[State Machine Diagram]{Outline of the state machine implemented on the microcontroller}
+    \label{fig:State_Machine}
+\end{figure}
+
+Each state corresponds to a different mode of operation for the device, details on each is outlined below:
+\begin{itemize}
+    \item \textbf{Connection}: The device waits for a handshake from the user interface. 
+    \item \textbf{Standby}: The device is connected and waits for a command to start the calibration process.
+    \item \textbf{Calibration}: The device performs a calibration routine communicating with the user interface (more detail found in Section \ref{sec:calibration}).
+    \item \textbf{Active}: The device is actively controlling the electromagnets to move the ball according to user input (more detail found in Section \ref{sec:active}).
+\end{itemize}
+
+\subsubsection{Orientation Tracking}
+A critical task in our software stack is the ability to track the orientation of the ball. This step is critical becuase this is what tells where each electromagnet is relative to the origin of the ball and this allows us to determine which magnet will need to be activated. Stated simply, we need a way to track the rotational state of the ball.
+
+There are a couple of popular methods for rotation tracking, 2 common approaches (Euler angles and quaternions) are outlined in Figure \ref{fig:angle_tracking_options}. We chose to implement the quaternion approach since it does not suffer from gimbal lock and it more computational effiecent to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach. For more detail on quaternions see appendix (TODO: add section of quaternions).
+\begin{figure}[h]
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=0.98\textwidth]{Diagrams and Images/euler-angle.png}
+        \caption[Euler Angle]{Euler angles is a common representation of rotation that uses three angles to represent the orientation of an object.}
+    \end{minipage} 
+    \hfill
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=0.98\textwidth]{Diagrams and Images/quaternion-basics.png}
+        \caption[Quaternion]{A quaternion is a mathematical object similar to a vector of size 4 that can represent the orientation of an object in 3D space.}
+    \end{minipage}
+    \label{fig:angle_tracking_options}
+\end{figure}
+
+An interntial measurment unit (IMU) can be used to update the rotation quaternion $q$ in real time. The quaternion can be calculated by using a famous Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer outputting a quaternion representing the current state of the ball \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}
+
+With the quaternion representing the current orientation of the ball, we can determine the location of the magnets relative to the origin of the ball. Critically using the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame, which is critical allows to align the magnet locations with the joystick input. The rotation of a vector $\vec{v}$ by a quaternion $q$ can be calculated using the following formula:
+
+\begin{equation}
+    \vec{v}_{\text{rotated}} = q \vec{v} q^{-1}
+    \label{eqn:magnet_rotation}
+\end{equation}
+
+By utilizing the above formula and the known locations of the magnets in the ball's reference frame we are able to determine the location of each magnet in the world reference frame. 
+
+\begin{equation}
+    \begin{aligned}
+        \mathbf{V}_{\text{magnet, world}} &= \begin{bmatrix}
+            \vec{v}_{1,\text{world}} \\
+            \vdots \\
+            \vec{v}_{20,\text{world}}
+        \end{bmatrix}, \\
+        \vec{v}_{i,\text{world}} &= q\,\vec{v}_{i, \text{ball}}\,q^{-1}, \quad i=1,\ldots,20
+    \end{aligned}
+    \label{eqn:magnet_world_location}
+\end{equation}
+
+\subsubsection*{IMU Selection}
+\label{sec:IMU_selection}
+There were severel IMU options we considered for this project. We ultimetely selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
+
+Our IMU selection was determined using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes. We found that the FSM300 had a $10^5$ times lower drift than the BN09X (the cheaper alternative).  
+
+\subsubsection{Magnet Selection}
+\label{sec:magnet_selection}
+TODO (left for LEVI)
+
+\subsubsection{Magnet Current Control}
+\label{sec:magnet_current_control}
+(TODO fill out later Logan)
+
+\subsubsection{Active State}
+\label{sec:active}
+In the active state, our ESP runs to seperate processes, one on each core on the esp. One core is responable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
+
+The two cores communicate through a globally shared object that contains the current state of the system. All shared memory is protected by mutexes to prevent race conditions between cores. More detail on the shared data between cores can be found in (appendix TODO: add section on shared data).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Diagrams and Images/core-1-loop.png}
+    \caption[Active State Diagram]{A diagram outlining the control flow in core 1 loop during the active state.}
+    \label{fig:Active_State_Diagram}
+\end{figure}
+
+The control loop is run on core 1 with the watchdog turned off to allow us to run our fast loop at $3.33 \text{KHz}$. Every 10 milliseconds, the algorithm checks for new orientation data from the IMU. The magnet selection algorothm runs using the new locations of each magnet in the world reference frame and the most recent joystick command. Note the joystick commands will updated by the loop in core 0 responsible for communication with the dashboard. After the maximum of 2 magents are selected and the current targets for the selected magnets are updated, the fast current loop is run with the updated current targets. 
+
+The communication loop on core 0 is responsible for receiving data from the dashboard and sending data back to the dashboard. The outbound data is sent at a rate of $10 \text{Hz}$ and contains the following state variables from the global state object:
+\begin{itemize}
+    \item Current orientation of the ball (quaternion)
+    \item Current target for each magnet
+    \item Current (and timestamp) through each magnet
+\end{itemize}
+The inbound data from the dashboard uses a polling architecture. When a new direction command is recived from the dashboard, the communication loop updates the global state with the new command. As described earlier, the control loop on core 1 will read this new command on its next loop. The inbound and outbound data loops run as seperate threads.
+
+
+
+
+\subsubsection{Calibration State}
+\label{sec:calibration}
+The calibration between the direction of the joystick and the direction IMU direction. Illustruvely, imagine setting the joystick the point north. In this case, the ball would have no ability to know which direction the joystick is pointed relative to the internal coordinates of the ball. Our calibration step is designed to help align the pair of coordinate systems. 
+
+Our process for calibration is as follows:
+\begin{enumerate}
+    \item The magnet with the largest force vector is selected and turned on at $12 \text{amps}$ for 1 second.
+    \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
+    \item The ball sets the yaw offset between the magnet and the joystick direction. The offset is then applied to all future joystick commands.
+\end{enumerate}
+
+
+
+
+
+
 
 \subsubsection{Tests and Results}
 
@@ -351,6 +411,28 @@ We performed this test in two configurations: placing the magnet directly above 
     \caption[Time Constant of Electromagnet]{The decay current through an electromagnet was measured in two states.}
     \label{fig:time_constant}
 \end{figure}
+
+\subsection{Mechanical Design}
+\subsubsection{Unit Cells}
+After the magnets were manufactured, as discussed in section~\ref{sec: mag manufacturing}, we fastened the cores to the driving circuit boards and a 3d printed mount using bolts. The magnet wire was soldered directly to the PCB, and the power and signal connections were also soldered directly, to minimize the number of connectors and potential points of failure. An image of the completed unit cell is shown in Figure~\ref{fig:unit_cell}. The addition of the 3d printed mount was necessary to provide easy installation in the ball.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/unit_cell.png}
+    \caption[Unit Cell]{A completed electromagnet consisting of the steel core and copper coil, driving circuit board with signal and power connectors, and 3D printed mount.}\label{fig:unit_cell}
+\end{figure}
+
+\subsubsection{Split Plane}
+To keep the sphere spherically symmetric, maintain consistent torque generation in all orientations, and simplify the control algorithms, we chose to design the sphere based on an icosahedral geometry. This geometry consists of twenty equally spaced faces, which allows us to place one electromagnet at the center of each face. To allow for assembly and maintenance, we designed the sphere to be split into two hemispheres along a edge of the icosahedron, ensuring that no magnets are located on the split plane. This design choice allows for access to the internal components without the need to remove any magnets. See figure~\ref{fig:split_plane} for an image of the split plane design and how the two halves of the sphere are fastened together.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/split_plane.png}
+    \caption[Split Plane Design]{The sphere is designed to be split into two halves along a plane that does not intersect any magnets, allowing for easy assembly and maintenance.}\label{fig:split_plane}
+\end{figure}
+
+\subsubsection{Integration}
+To connect the electromagnet boards to the microcontroller and power supply, four PCBs were designed and built. The power distribution boards take the main power supply and distribute it to the twenty electromagnet boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the appropriate electromagnet boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all of the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller. The microcontroller board also connected to an IMU board using I2C.
 
 
 \section{Conclusion}
@@ -390,7 +472,6 @@ Although motion control currently performs as expected, the power supplies exhib
     \item KiCAD Circuit Schematic
 \end{enumerate}
 
-\section{References}
 \begin{thebibliography}{9}
 
 \bibitem{2507_report} 
@@ -401,6 +482,13 @@ Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance mot
 
 \bibitem{ChatGPT}
 OpenAI. (2025). \textit{ChatGPT} (April 6, 2025). https://www.openai.com/chatgpt
+
+\bibitem{Hamraoui_2018}
+Hamraoui, K., Van Damme, L., Mardesic, P. \& Sugny, D. (2018, March 16). \textit{(Color online) Definition of the Euler angles used to describe the position of the body-fixed frame.} ResearchGate. Retrieved April 10, 2026, from \url{https://www.researchgate.net/figure/Color-online-Definition-of-the-Euler-angles-used-to-describe-the-position-of-the_fig1_323821605}
+
+\bibitem{Madgwick_2010}
+Madgwick, S. O. H. (2010, April 30). \textit{An efficient orientation filter for inertial and inertial/magnetic sensor arrays.} University of Bristol. Retrieved April 10, 2026, from https://web.enib.fr/\textasciitilde kerhoas/iot/reseau-de-capteurs/carte-imu-mpu9250/documents/INVENSENSE/madgwick\_internal\_report.pdf
+
 
 \end{thebibliography}
 \newpage
