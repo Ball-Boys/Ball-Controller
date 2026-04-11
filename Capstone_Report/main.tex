@@ -14,6 +14,7 @@
 \usepackage{subcaption}
 \usepackage{amsmath}
 \usepackage{pdfpages}
+\usepackage{url}
 
 
 % Font Settings
@@ -376,7 +377,56 @@ Each state corresponds to a different mode of operation for the device, details 
 \end{itemize}
 
 \subsubsection{Orientation Tracking}
-A critical task in our software stack is the ability to track the orientation of the ball. This step is critical becuase this is what tells where each electromagnet is relative to the origin of the ball and this allows us to determine which magnet will need to be activated. We chose the ultize 
+A critical task in our software stack is the ability to track the orientation of the ball. This step is critical becuase this is what tells where each electromagnet is relative to the origin of the ball and this allows us to determine which magnet will need to be activated. Stated simply, we need a way to track the rotational state of the ball.
+
+There are a couple of popular methods for rotation tracking, 2 common approaches (Euler angles and quaternions) are outlined in Figure \ref{fig:angle_tracking_options}. We chose to implement the quaternion approach since it does not suffer from gimbal lock and it more computational effiecent to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach. For more detail on quaternions see appendix (TODO: add section of quaternions).
+\begin{figure}[h]
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=0.98\textwidth]{Diagrams and Images/euler-angle.png}
+        \caption[Euler Angle]{Euler angles is a common representation of rotation that uses three angles to represent the orientation of an object.}
+    \end{minipage} 
+    \hfill
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=0.98\textwidth]{Diagrams and Images/quaternion-basics.png}
+        \caption[Quaternion]{A quaternion is a mathematical object similar to a vector of size 4 that can represent the orientation of an object in 3D space.}
+    \end{minipage}
+    \label{fig:angle_tracking_options}
+\end{figure}
+
+An interntial measurment unit (IMU) can be used to update the rotation quaternion $q$ in real time. The quaternion can be calculated by using a famous Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer outputting a quaternion representing the current state of the ball \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}
+
+With the quaternion representing the current orientation of the ball, we can determine the location of the magnets relative to the origin of the ball. Critically using the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame, which is critical allows to align the magnet locations with the joystick input. The rotation of a vector $\vec{v}$ by a quaternion $q$ can be calculated using the following formula:
+
+\begin{equation}
+    \vec{v}_{\text{rotated}} = q \vec{v} q^{-1}
+    \label{eqn:magnet_rotation}
+\end{equation}
+
+By utilizing the above formula and the known locations of the magnets in the ball's reference frame we are able to determine the location of each magnet in the world reference frame. 
+
+\begin{equation}
+    \begin{aligned}
+        \mathbf{V}_{\text{magnet, world}} &= \begin{bmatrix}
+            \vec{v}_{1,\text{world}} \\
+            \vdots \\
+            \vec{v}_{20,\text{world}}
+        \end{bmatrix}, \\
+        \vec{v}_{i,\text{world}} &= q\,\vec{v}_{i, \text{ball}}\,q^{-1}, \quad i=1,\ldots,20
+    \end{aligned}
+    \label{eqn:magnet_world_location}
+\end{equation}
+
+\subsubsection*{IMU Selection}
+\label{sec:IMU_selection}
+There were severel IMU options we considered for this project. We ultimetely selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
+
+Our IMU selection was determined using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes. We found that the FSM300 had a $10^5$ times lower drift than the BN09X (the cheaper alternative).  
+
+\subsubsection{Magnet Selection}
+\label{sec:magnet_selection}
+TODO (left for LEVI)
 
 \subsubsection{Active State}
 \label{sec:active}
@@ -475,6 +525,13 @@ Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance mot
 
 \bibitem{ChatGPT}
 OpenAI. (2025). \textit{ChatGPT} (April 6, 2025). https://www.openai.com/chatgpt
+
+\bibitem{Hamraoui_2018}
+Hamraoui, K., Van Damme, L., Mardesic, P. \& Sugny, D. (2018, March 16). \textit{(Color online) Definition of the Euler angles used to describe the position of the body-fixed frame.} ResearchGate. Retrieved April 10, 2026, from \url{https://www.researchgate.net/figure/Color-online-Definition-of-the-Euler-angles-used-to-describe-the-position-of-the_fig1_323821605}
+
+\bibitem{Madgwick_2010}
+Madgwick, S. O. H. (2010, April 30). \textit{An efficient orientation filter for inertial and inertial/magnetic sensor arrays.} University of Bristol. Retrieved April 10, 2026, from https://web.enib.fr/\textasciitilde kerhoas/iot/reseau-de-capteurs/carte-imu-mpu9250/documents/INVENSENSE/madgwick\_internal\_report.pdf
+
 
 \end{thebibliography}
 \newpage
