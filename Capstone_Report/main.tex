@@ -60,7 +60,7 @@
 
 \newpage
 \subsection*{Executive Summary}
-This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a steel surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
+This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a ferromagnetic surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
 An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
@@ -128,17 +128,16 @@ Building on our previous work, this year we focused on system design, manufactur
     \label{fig:SLD}
 \end{figure}
 
-Our goal was to develop a sphere that has twenty electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from the main power supply and communicates with the microcontroller. The microcontroller also receives data from the IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
+Our goal was to develop a sphere that has twenty electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from the main batteries and communicates with the microcontroller. The microcontroller also receives data from the IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
 
 By breaking the system down into these components, we were able to design and test each one in isolation. This modular approach allowed us to develop the electromagnets independently, while creating and refining the driving circuit in parallel.
-
 
 \subsection{Electromagnet}
 \subsubsection{Theory}
 
-The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent steel plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
+The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent ferromagnetic plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
 
-The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we can minimize the air gap between the electromagnet and the steel plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Noteably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a singular location for the flux to be concentrated, which helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
+The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we can minimize the air gap between the electromagnet and the ferromagnetic plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Noteably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a singular location for the flux to be concentrated, which helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
 
 \begin{figure}[h]
     \centering
@@ -150,7 +149,7 @@ The strength of this force is directly related to the magnetic flux ($\Phi$) flo
 TODO: Delete at end.
 
 \subsubsection{Manufacturing}\label{sec: mag manufacturing}
-To build each of the twenty electromagnets, we first waterjet cut the cores from steel plates, and then wound copper coils using a winding jig and custom mounts and sleeves. The mass and resistance of each magnet was measured and recorded to ensure consistency.
+To build each of the twenty electromagnets, we first waterjet cut the cores from ferromagnetic plates, and then wound copper coils using a winding jig and custom mounts and sleeves. The mass and resistance of each magnet was measured and recorded to ensure consistency.
 
 \subsection{Driving Circuitry}
 
@@ -388,7 +387,7 @@ The full driver circuit we built for the disk includes four copies (one per magn
 \textbf{Time Constant}\\
 The electrical time constant of the circuit is an important parameter to consider. To experimentally determine this value, we used our current controller to set a non-zero target current, then a zero target, and recorded the waveform as it decayed.
 
-We performed this test in two configurations: placing the magnet directly above the steel plate, and in the free air away from the plate. Placing the magnet near the plate effectively increases the coil’s inductance and thus the time constant $\tau$. This test was conducted to evaluate how significant this change would affect the response time and whether it could impact control performance. As shown in Figure \ref{fig:time_constant}, the measured time constant in free air was 5.82 ms, while the time constant above the plate increased to 7.34 ms. This difference aligns with expectations given the inductance change, but in both cases, the values remain quite small. We expect that the system’s mechanical inertia will dominate, and the electrical time constant will not pose a limitation on controls.
+We performed this test in two configurations: placing the magnet directly above the ferromagnetic plate, and in the free air away from the plate. Placing the magnet near the plate effectively increases the coil’s inductance and thus the time constant $\tau$. This test was conducted to evaluate how significant this change would affect the response time and whether it could impact control performance. As shown in Figure \ref{fig:time_constant}, the measured time constant in free air was 5.82 ms, while the time constant above the plate increased to 7.34 ms. This difference aligns with expectations given the inductance change, but in both cases, the values remain quite small. We expect that the system’s mechanical inertia will dominate, and the electrical time constant will not pose a limitation on controls.
 
 \begin{figure}[H]
     \centering
@@ -414,11 +413,11 @@ After the magnets were manufactured, as discussed in section~\ref{sec: mag manuf
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Diagrams and Images/unit_cell.png}
-    \caption[Unit Cell]{A completed electromagnet consisting of the steel core and copper coil, driving circuit board with signal and power connectors, and 3D printed mount.}\label{fig:unit_cell}
+    \caption[Unit Cell]{A completed electromagnet consisting of the ferromagnetic core and copper coil, driving circuit board with signal and power connectors, and 3D printed mount.}\label{fig:unit_cell}
 \end{figure}
 
 \subsubsection{Icosahedral Geometry and Split Plane Design}
-Maintaining spherical symmetry in our design was critical. Rotational inertia, available torque generation, and control complexity are simplified when the system behaves the same in all orientations. From our previous work, and magnet design testing, we found that the magnets were only effective when they were rotated to within 45 degrees of the steel plate. These requirements led us to a icosahedral geometry which has twenty faces that are equally spaced around the surface, with 42 degree angles between magnet centers. This allows us to place one magnet at the center of each face. We designed the sphere to be split into two hemispheres along a edge of the icosahedron, ensuring that no magnets are located on the split plane. This design choice allows for access to the internal components without the need to remove any magnets. See figure~\ref{fig:split_plane} for an image of the split plane design and how the two halves of the sphere combine.
+Maintaining spherical symmetry in our design was critical. Rotational inertia, available torque generation, and control complexity are simplified when the system behaves the same in all orientations. From our previous work, and magnet design testing, we found that the magnets were only effective when they were rotated to within 45 degrees of the ferromagnetic plate. These requirements led us to a icosahedral geometry which has twenty faces that are equally spaced around the surface, with 42 degree angles between magnet centers. This allows us to place one magnet at the center of each face. We designed the sphere to be split into two hemispheres along a edge of the icosahedron, ensuring that no magnets are located on the split plane. This design choice allows for access to the internal components without the need to remove any magnets. See figure~\ref{fig:split_plane} for an image of the split plane design and how the two halves of the sphere combine.
 
 \begin{figure}[h]
     \centering
@@ -427,10 +426,16 @@ Maintaining spherical symmetry in our design was critical. Rotational inertia, a
 \end{figure}
 
 \subsubsection{Integration}
-To connect the electromagnet boards to the microcontroller and power supply, four PCBs were designed and built. The power distribution boards take the main power supply and distribute it to the twenty electromagnet boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the appropriate electromagnet boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all of the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller. The microcontroller board also connected to an IMU board using I2C.
+To connect the current driver boards to the microcontroller and batteries, four PCBs were designed and built, shown in Figure~\ref{fig:integration}. The two power distribution boards provide the battery power to the twenty current driver boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the current driver boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all of the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller and send individual PWM signals to each magnet. The microcontroller board also connected to an IMU board using I2C. Each half of the sphere contains ten magnets, and a power distribution board. The signal distribution board pairs with a smaller board in the second half to route the signals to those driver boards.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/System_Diagram.png}
+    \caption[Control Boards]{A diagram showing the connections of thevarious PCBs and components within the sphere.}\label{fig:integration}
+\end{figure}
 
 \section{Conclusion}
-The primary objective of this project was to develop a three-dimensional spherical robot capable of moving using the forces generated by internal electromagnets. By successfully integrating twenty individually controlled electromagnets with a battery supply, IMU, and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a steel surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
+The primary objective of this project was to develop a three-dimensional spherical robot, capable of moving using the forces generated by internal electromagnets. By successfully integrating twenty individually controlled electromagnets, with a battery supply, IMU and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a ferromagnetic surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
 
 While this prototype successfully validates the core mechanical, electrical, and software architecture, the current design faces performance bottlenecks primarily related to weak torque generation. This weakness stems from several distinct operational and design limitations:
 \begin{itemize}
