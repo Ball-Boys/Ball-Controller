@@ -180,7 +180,7 @@ The final schematic for the implementation of the current driver is shown in Fig
 \end{figure}
 
 \textbf{Switching Stage}\\
-A gate driver is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which limit the gate charging current. Figure \ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$. The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to a safe level.
+A gate driver (U2) is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which limit the gate charging current. Figure \ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$, which is used in the final design (R1, R2). The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to less than 4 V overshoot from supply.
 
 \begin{figure}[H]
     \centering
@@ -203,20 +203,40 @@ A gate driver is used to drive the gate of the MOSFET, providing the necessary v
 
 
 \textbf{Current Sensing}\\
-The shunt resistor and differential amplifier are selected to provide optimal accuracy and resolution. A 5 m$\Omega$ shunt was selected to keep power loss small. Care was taken to select a shunt resistor with low parasitic inductance to minimize di/dt noise in the current measurement. A TI INA180 current sense amplifer was selected having a gain of 50 V/V giving a measureable current range of 0-13.2 A with its 3.3 V output range. An RC lowpass filter with 5 kHz cuttoff is used on the output to attenuate high frequency switching noise before the signal is given to the ADC.
+The shunt resistor and differential amplifier are selected to provide optimal accuracy and resolution. A 5 m$\Omega$ shunt (R3) was selected to keep power loss small. Care was taken to select a shunt resistor with low parasitic inductance to minimize di/dt noise in the current measurement. A TI INA180 current sense amplifer (U4) was selected having a gain of 50 V/V giving a measureable current range of 0-13.2 A with its 3.3 V output range. An RC lowpass filter (R6,C4) with 5 kHz cuttoff is used on the output to attenuate high frequency switching noise before the signal is given to the ADC.
 
 \textbf{Power}\\
 Each current driver requires two voltage supply levels to support its operation. The electromagnets must be supplied with high enough voltage to deliver currents up to 10A (based on magnet testing and determined magnet force requirements) through a ${\sim}1\,\Omega$ load (electromagnet series resistance). Additionally a higher supply voltage will increase the rate at which current can rise and fall through the electromagnets, improving responsiveness. To balance battery size and performance, a 14.7 V rail was determined to be sufficient. 
 
-A 3.3 V supply is also required to power the current sense amplifier. This is supplied by the ESP32's internal voltage regulator, to ensure proper referenceing between the amplifier and the microcontroller. In this driver architecture, the gate drive is supplied with the same 14.7 V supply as the electromagnets. When the electromagnets pull current, stray inductance between the magnet terminal and the battery leads cause the supply voltage to sag. If the supply sags too low, the gate driver may enter a lock-out mode, preventing it from driving the MOSFET. A sag in supply voltage also degrades the performance of the current driver since the electromagnet is being driven with a lower voltage. To solve this issue, a large 100 $\mu$F electrolytic capacitor is placed across the supply rails on the current driver board to provide a local charge reservoir for the current driver to source current from. A small 68 $nF$ ceramic capacitor is placed in parallel to the electrolytic to filter out high frequency noise on the supply.
+A 3.3 V supply is also required to power the current sense amplifier. This is supplied by the ESP32's internal voltage regulator, to ensure proper referenceing between the amplifier and the microcontroller. In this driver architecture, the gate drive is supplied with the same 14.7 V supply as the electromagnets. When the electromagnets pull current, stray inductance between the magnet terminal and the battery leads cause the supply voltage to sag. If the supply sags too low, the gate driver may enter a lock-out mode, preventing it from driving the MOSFET. A sag in supply voltage also degrades the performance of the current driver since the electromagnet is being driven with a lower voltage. To solve this issue, a large 100 $\mu$F electrolytic capacitor (C2) is placed across the supply rails on the current driver board to provide a local charge reservoir for the current driver to source current from. A small 68 $nF$ (C3) ceramic capacitor is placed in parallel to the electrolytic to filter out high frequency noise on the supply.
 
-Figure \ref{fig:unitCellDiagram} shows the final unit cell magnet actuator, which includes the electromagnet, current driver, and connections to the microcontroller and power supply.
+
+\subsubsection{Performance}
+
+Figure \ref{fig:unitCellDiagram} shows the final unit cell magnet actuator, which has the current driver board mounted directly onto the magnet. Connecting the board to power and wiring PWM and current sense signals to a microcontroller we get an actuator that we can use throughout our ball.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{Diagrams and Images/unitCellDiagram.png}
+    \includegraphics[width=0.5\textwidth]{Diagrams and Images/unitCellDiagram.png}
     \caption[PCB]{Unit cell magnet actuator. PWM signal from microcontroller is input to the current driver board. Analog current sense signal is sent to ADC on microcontroller board creating closed loop feedback scheme. 14.7 V battery supply is used to power the electromagnet, and 3.3 V supplied from microcontroller is used to power the current sense amplifier.}\label{fig:unitCellDiagram}
 \end{figure}
+
+Looking at the step response of electromagnet current given a setpoint command from the microcontroller, we tuned the PID control of the current driver to achieve responsive behavior. Figure \ref{fig:stepResponse} shows the current response to a step change in the current setpoint.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{Diagrams and Images/stepResponse.png}
+    \caption{Step response of electromagnet current to a setpoint change. The tuned controller achieves a 10-90\% rise time of 10ms, which is sufficient for our application given the mechanical time constants of the system are much larger due to intertia.}\label{fig:stepResponse}
+\end{figure}
+
+Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneously control current through multiple electromagnets. The sine wave command demonstrates the fine resolution of control that is possible with this current driver system. Sine wave commands of frequnecies over 100 Hz begin to have amplitude attenuation due to the control bandwidth and measured step response of \~ 10ms, but again this is negligible compared to the mechanical time constants of the system. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{Diagrams and Images/currentTest.png}
+    \caption[PCB]{Simultaneous control of 3 electromagnets. Commanded waveform is a 2 Hz, 4A peak-to-peak sine wave on each.}\label{fig:currentTest}
+\end{figure}
+
 
 
 \subsection{Software Architecture}
