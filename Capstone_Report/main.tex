@@ -51,7 +51,7 @@
     Greg Reid\\[1cm]
 
     Project 2553\\
-    Applied Science 479\\
+    Engineering Physics 479\\
     Boye Ahlborn Engineering Physics Project Laboratory\\
     The University of British Columbia\\
     April 12, 2025
@@ -99,8 +99,7 @@ Conventional motors use electrical currents, conductive windings, and magnetic m
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.6\textwidth]{Kris_Visuals/SRM_Diagram.png}
-    \caption[Switch Reluctance Motor Diagram]{A simplified diagram of a switched reluctance motor consists of a rotating ferromagnetic rotor, and powered stator poles.}
-~\label{fig:SRM_Diagram}
+    \caption[Switched reluctance motor diagram]{A simplified diagram of a switched reluctance motor consists of a rotating ferromagnetic rotor, and powered stator poles.}\label{fig:SRM_Diagram}
 \end{figure}
 
 Our sponsor, the Project Lab, challenged our team to invert the traditional concepts of a switched reluctance motor, and design a spherical robot which uses internal electromagnets to generate controlled rolling motion along a ferromagnetic surface. Comparing the operation to an SRM, the stator becomes our robot, and the rotor becomes the ferromagnetic surface which our robot moves along. Torque and therefore motion is produced from the system’s natural tendency to minimize the reluctance (air gap) between the energized electromagnet and the ferromagnetic surface. The electromagnets inside the robot are individually controlled to manage the sphere's position and rotational speed.
@@ -110,7 +109,7 @@ As shown in Figure~\ref{fig:Sphere_Torque_Generation}, when an individual electr
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Kris_Visuals/Ball_torque_image2.png}
-    \caption[Torque Generation of Sphere]{The electromagnets around the ball create an attractive force to the ferromagnetic surface (orange arrow), resulting in a rotation about its center (red arrow)}
+    \caption[Generating torque on the sphere]{The electromagnets around the ball create an attractive force to the ferromagnetic surface (orange arrow), resulting in a rotation about its center (red arrow)}
     \label{fig:Sphere_Torque_Generation}
 \end{figure}
 
@@ -126,7 +125,7 @@ Our goal was to develop a sphere that has twenty electromagnets positioned aroun
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Diagrams and Images/work_in_progress.png}
-    \caption[System level Diagram]{Overview of our system}
+    \caption[System level diagram]{Overview of our system}
     \label{fig:SLD}
 \end{figure}
 
@@ -145,7 +144,7 @@ The strength of this force is directly related to the magnetic flux ($\Phi$) flo
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Diagrams and Images/example_sim.png}
-    \caption[Simulation of Magnetic Flux]{ANSYS simulation of the trident core geometry. The vector field demonstrates how magnetic flux is concentrated through the central pole and outer return paths to minimize reluctance across the air gap.}\label{fig:2026_magnet_design}
+    \caption[Simulation of magnetic flux]{ANSYS simulation of the trident core geometry. The vector field demonstrates how magnetic flux is concentrated through the central pole and outer return paths to minimize reluctance across the air gap.}\label{fig:2026_magnet_design}
 \end{figure}
 
 \subsubsection{Optimization of Coil Winding Count}
@@ -156,7 +155,7 @@ Our mathematical model revealed an optimal configuration at $N=202$ loops.
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Kris_Visuals/2026_Magnet_CAD.png}
-    \caption[2026 Magnet Design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
+    \caption[2026 magnet design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
 \end{figure}
 
 
@@ -173,7 +172,7 @@ Electrically, the electromagnets can be modelled as a series combination of a re
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/exampleElectromagnetCurrent.png}
-    \caption[exampleCurrent]{Illustrative example of the current through an electromagnet as it is modulated through the switching of an applied voltage. When the switch is closed, the current rises with an RL exponential characteristic, and when the switch is opened, the current falls an RL exponential characteristic. The average current can be modulated by changing the duty cycle of the PWM signal, and the current ripple can be reduced by increasing the PWM switching frequency. The ripple in this example is exaggerated for illustrative purposes, but in practice with switching at frequencies in the 10's of kHz, ripple can be reduced to less than a few percent of the average current.}
+    \caption[Example waveforms of electromagnet current due to MOSFET switching]{Illustrative example of the current through an electromagnet as it is modulated through the switching of an applied voltage. When the switch is closed, the current rises with an RL exponential characteristic, and when the switch is opened, the current falls an RL exponential characteristic. The average current can be modulated by changing the duty cycle of the PWM signal, and the current ripple can be reduced by increasing the PWM switching frequency. The ripple in this example is exaggerated for illustrative purposes, but in practice with switching at frequencies in the 10's of kHz, ripple can be reduced to less than a few percent of the average current.}
     \label{fig:exampleCurrent}
 \end{figure}
 
@@ -182,7 +181,7 @@ Figure \ref{fig:Schematic} shows the high level architecture used to implement t
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.4\textwidth]{Circuit Visuals/Circuit Schematic.png}
-    \caption[Schematic]{High-level architecture of the electromagnet current driver circuit}
+    \caption[High-level current driver circuit architecture]{High-level architecture of the electromagnet current driver circuit}
     \label{fig:Schematic}
 \end{figure}
 
@@ -193,30 +192,26 @@ The final schematic for the implementation of the current driver is shown in Fig
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
-    \caption[Schematic]{Final KiCad Schematic for electromagnet current driver circuit}
-    \label{fig:kiCadSchematic}
+    \caption[Current driver circuit KiCad schematic]{Final KiCad schematic for electromagnet current driver circuit}~\label{fig:kiCadSchematic}
 \end{figure}
 
 \textbf{Switching Stage}\\
-A gate driver (U2) is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which limit the gate charging current. Figure \ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$, which is used in the final design (R1, R2). The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to less than 4 V overshoot from supply.
+A gate driver (U2) is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which limit the gate charging current. Figure~\ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$, which is used in the final design (R1, R2). The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to less than 4 V overshoot from supply.
 
 \begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{Diagrams and Images/withoutGateRes.png}
-        \caption{1 $\Omega$ gate resistance}
-        \label{fig:withoutGateRes}
+        \caption{1 $\Omega$ gate resistance}~\label{fig:withoutGateRes}
     \end{subfigure}
     \hfill
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{Diagrams and Images/withGateRes.png}
-        \caption{13.3 $\Omega$ gate resistance}
-        \label{fig:withGateRes}
+        \caption{13.3 $\Omega$ gate resistance}~\label{fig:withGateRes}
     \end{subfigure}
-    \caption{Drain-source voltage overshoot on turn off events with different gate resistance values. The gate resistors limit the switching speed of the MOSFET, which reduces the voltage overshoot and protects the MOSFET from damage.}
-    \label{fig:gateResComparison}
+    \caption[Driver circuit scope traces of MOSFET $V_{DS}$ overshoot during gate resistance tuning.]{Drain-source voltage overshoot on turn off events with different gate resistance values. The gate resistors limit the switching speed of the MOSFET, which reduces the voltage overshoot and protects the MOSFET from damage.}~\label{fig:gateResComparison}
 \end{figure}
 
 
@@ -236,7 +231,7 @@ Figure \ref{fig:unitCellDiagram} shows the final unit cell magnet actuator, whic
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{Diagrams and Images/unitCellDiagram.png}
-    \caption[PCB]{Unit cell magnet actuator. PWM signal from microcontroller is input to the current driver board. Analog current sense signal is sent to ADC on microcontroller board creating closed loop feedback scheme. 14.7 V battery supply is used to power the electromagnet, and 3.3 V supplied from microcontroller is used to power the current sense amplifier.}\label{fig:unitCellDiagram}
+    \caption[Current driver circuit information flow diagram]{Unit cell magnet actuator. PWM signal from microcontroller is input to the current driver board. Analog current sense signal is sent to ADC on microcontroller board creating closed loop feedback scheme. 14.7 V battery supply is used to power the electromagnet, and 3.3 V supplied from microcontroller is used to power the current sense amplifier.}\label{fig:unitCellDiagram}
 \end{figure}
 
 Looking at the step response of electromagnet current given a setpoint command from the microcontroller, we tuned the PID control of the current driver to achieve responsive behavior. Figure \ref{fig:stepResponse} shows the current response to a step change in the current setpoint.
@@ -244,7 +239,7 @@ Looking at the step response of electromagnet current given a setpoint command f
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/stepResponse.png}
-    \caption{Step response of electromagnet current to a setpoint change. The tuned controller achieves a 10-90\% rise time of 10ms, which is sufficient for our application given the mechanical time constants of the system are much larger due to intertia.}\label{fig:stepResponse}
+    \caption[Step response of electromagnet current]{Step response of electromagnet current to a setpoint change. The tuned controller achieves a 10-90\% rise time of 10ms, which is sufficient for our application given the mechanical time constants of the system are much larger due to intertia.}\label{fig:stepResponse}
 \end{figure}
 
 Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneously control current through multiple electromagnets. The sine wave command demonstrates the fine resolution of control that is possible with this current driver system. Sine wave commands of frequnecies over 100 Hz begin to have amplitude attenuation due to the control bandwidth and measured step response of \~ 10ms, but again this is negligible compared to the mechanical time constants of the system. 
@@ -252,7 +247,7 @@ Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneo
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/currentTest.png}
-    \caption[PCB]{Simultaneous control of 3 electromagnets. Commanded waveform is a 2 Hz, 4A peak-to-peak sine wave on each.}\label{fig:currentTest}
+    \caption[Scope traces of simultaneous electromagnet control of three electromagnets]{Simultaneous control of 3 electromagnets. Commanded waveform is a 2 Hz, 4A peak-to-peak sine wave on each.}\label{fig:currentTest}
 \end{figure}
 
 
@@ -563,9 +558,13 @@ Our telemetry dashboard UI was used as the main graphical interface for testing 
     \caption[Telemetry Dashboard UI]{The telemetry dashboard UI was used as the main graphical interface for testing and operation of the system.}\label{fig:telemetryDashboardUI}
 \end{figure}
 
-% \newpage
-% \section{Current Sense Amplifier Datasheet}
-% % \includepdf[pages=1,3,6,7,10,13,15]{Datasheets/av02-0956en.pdf}
+\newpage
+\section{ESP32 Control Board}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{KiCAD Schematics/ESP_Board.png}
+    \caption[ESP32 Control Board]{ESP32 Control Board}
+\end{figure}
 
 % \newpage
 % \section{Gate Driver Datasheet}
