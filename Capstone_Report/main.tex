@@ -384,7 +384,7 @@ Given a magnet and a current set point, we use a simple PI controller to select 
 \label{sec:active}
 In the active state, our ESP runs 2 separate processes, one on each core on the esp. One core is reasonable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
 
-The two cores communicate through a globally shared object that contains the current state of the system. All shared memory betweeb cores is protected by mutexes to prevent race conditions between cores.
+The two cores communicate through a globally shared object that contains the current state of the system. All shared memory between cores is protected by mutexes to prevent race conditions between cores.
 
 \begin{figure}[h]
     \centering
