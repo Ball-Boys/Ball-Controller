@@ -405,17 +405,6 @@ The inbound data from the dashboard uses a polling approach. When a new directio
 
 
 
-
-\subsubsection{Calibration State}
-\label{sec:calibration}
-The connection between the direction of the joystick and the local axis of the ball is challenging to connect. Our calibration step is designed to help align the pair of coordinate systems, and is as follows:
-\begin{enumerate}
-    \item The magnet with the largest force vector is selected and turned on at $12 \text{amps}$ for 1 second.
-    \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
-    \item The ball sets the yaw offset between the magnet and the joystick direction. The offset is then applied to all future joystick commands.
-\end{enumerate}
-
-
 \subsection{Mechanical Design}
 \subsubsection{Unit Cells}
 After the magnets were manufactured, as discussed in section~\ref{sec: mag manufacturing}, we fastened the cores to the driving circuit boards and a 3d printed mount using bolts. The magnet wire was soldered directly to the PCB, and the power and signal connections were also soldered directly, to minimize the number of connectors and potential points of failure. An image of the completed unit cell is shown in Figure~\ref{fig:unit_cell}. The addition of the 3d printed mount was necessary to provide easy installation in the ball.
@@ -553,6 +542,26 @@ Our IMU performance was analyzed using a stable drift test. In this test, we pla
 The FSM300 had a $10^5$ times lower drift than the BN09X, a cheaper alternative.  
 
 
+
+\section{Calibration State}
+\label{sec:calibration}
+The connection between the direction of the joystick and the local axis of the ball is challenging to connect. Our calibration step is designed to help align the pair of coordinate systems, and is as follows:
+\begin{enumerate}
+    \item The magnet with the largest force vector is selected and turned on at $12 \text{amps}$ for 1 second.
+    \item The user draws the joystick in the direction of travel of the ball and send that direction to the ball.
+    \item The ball sets the yaw offset between the magnet and the joystick direction. The offset is then applied to all future joystick commands.
+\end{enumerate}
+With this implementation, the user can calibrate at any point in time when the drift affects performance on the UI.
+
+\section{Telemetry Dashboard UI}
+\label{sec:telemetry_dashboard_ui}
+Our telemetry dashboard UI was used as the main graphical interface for testing and operation of the system. The UI contained a joystick for user input, a 3D visualization of the ball and its magnets, and real-time plots of the current through each magnet as well as each of their set points. The UI was built using Python and the PyQt library for the graphical interface, with Matplotlib for plotting. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/dashboard.png}
+    \caption[Telemetry Dashboard UI]{The telemetry dashboard UI was used as the main graphical interface for testing and operation of the system.}\label{fig:telemetryDashboardUI}
+\end{figure}
 
 % \newpage
 % \section{Current Sense Amplifier Datasheet}
