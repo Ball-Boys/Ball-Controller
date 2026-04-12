@@ -60,7 +60,6 @@
 
 \newpage
 \subsection*{Executive Summary}
-This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a ferromagnetic surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
 An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
@@ -104,7 +103,7 @@ Conventional motors use electrical currents, conductive windings, and magnetic m
 
 Our sponsor, the Project Lab, challenged our team to invert the traditional concepts of a switched reluctance motor, and design a spherical robot which uses internal electromagnets to generate controlled rolling motion along a ferromagnetic surface. Comparing the operation to an SRM, the stator becomes our robot, and the rotor becomes the ferromagnetic surface which our robot moves along. Torque and therefore motion is produced from the system’s natural tendency to minimize the reluctance (air gap) between the energized electromagnet and the ferromagnetic surface. The electromagnets inside the robot are individually controlled to manage the sphere's position and rotational speed.
 
-As shown in Figure~\ref{fig:Sphere_Torque_Generation}, when an individual electromagnet is powered, it generates a magnetic field (blue), which magnetizes the ferromagnetic surface, resulting in an attractive force downward. The force creates a torque, rotating the ball forward. All necessary electronics, power supplies, sensors, and control devices are contained within the body of the robot. This inverted approach allows us to apply magnetic circuit theory, develop power electronic systems, and implement advanced control algorithms in the context of a challenging and unconventional engineering problem. Concepts drawn from traditional reluctance motors aided in our design, however we did not see any projects similar to this during our research.
+As shown in Figure~\ref{fig:Sphere_Torque_Generation}, when an individual electromagnet is powered, it generates a magnetic field, which magnetizes the ferromagnetic surface, resulting in an attractive force downward. The force creates a torque, rotating the ball forward. All necessary electronics, power supplies, sensors, and control devices are contained within the body of the robot. This inverted approach allows us to apply magnetic circuit theory, develop power electronic systems, and implement advanced control algorithms in the context of a challenging and unconventional engineering problem. Concepts drawn from traditional reluctance motors aided in our design, however we did not see any projects similar to this during our research.
 
 \begin{figure}[h]
     \centering
@@ -253,7 +252,7 @@ Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneo
 
 
 \subsection{Software Architecture}
-The software connects all the balls magnets and orientation sensing components. This section will discuss the high level goals of the software and will discuss the implementation details of the system. 
+The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
 
 \subsubsection{Background}
 The high level goal of the software is to coordinate the current going through each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: 
@@ -266,7 +265,7 @@ The high level goal of the software is to coordinate the current going through e
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.75\textwidth]{Diagrams and Images/eye-of-god-figure.png}
-    \caption[Software Overview]{A diagram outlining the functionality hoping to be achieved by the software.}
+    \caption[Software overview]{A diagram outlining the functionality hoping to be achieved by the software.}
     \label{fig:Software_Overview}
 \end{figure}
 
@@ -279,7 +278,7 @@ Since our ball will rotate omnidirectionally, a wired data transmission makes li
 \begin{figure}
     \centering
     \includegraphics[width=0.75\textwidth]{Diagrams and Images/communication-diagram.png}
-    \caption[Communication Diagram]{A diagram outlining the communication between the user interface and the ball.}
+    \caption[Communications diagram]{A diagram outlining the communication between the user interface and the ball.}
     \label{fig:Communication_Diagram}
 \end{figure}
 
@@ -291,7 +290,7 @@ Our on device state management is implemented as a state machine. An outline of 
 \begin{figure}[h]
     \centering
     \includegraphics[width=1.0\textwidth]{Diagrams and Images/state-machine-breakdown.png}
-    \caption[State Machine Diagram]{Outline of the state machine implemented on the microcontroller.}
+    \caption[State machine diagram]{Outline of the state machine implemented on the microcontroller.}
     \label{fig:State_Machine}
 \end{figure}
 
@@ -311,7 +310,7 @@ There are a couple of popular methods for rotation tracking, 2 common approaches
     \begin{minipage}{0.49\textwidth}
         \centering
         \includegraphics[width=0.98\textwidth]{Diagrams and Images/euler-angle.png}
-        \caption[Euler Angle]{Euler angles is a common representation of rotation that uses three angles to represent the orientation of an object.}
+        \caption[Euler angle visualization]{Euler angles is a common representation of rotation that uses three angles to represent the orientation of an object.}
     \end{minipage} 
     \hfill
     \begin{minipage}{0.49\textwidth}
@@ -364,7 +363,7 @@ To find the optimal combination of magnets to match the desired force, the syste
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/torque_model.png}
-    \caption[Torque Model]{Our model of the torque generated by a single magnet at different angles from the steel plate.}
+    \caption[Torque model]{Our model of the torque generated by a single magnet at different angles from the steel plate.}
     \label{fig:torque_model}
 \end{figure}
 
@@ -384,7 +383,7 @@ The two cores communicate through a globally shared object that contains the cur
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.75\textwidth]{Diagrams and Images/core-1-loop.png}
-    \caption[Active State Diagram]{A diagram outlining the control flow in core 1 loop during the active state.}
+    \caption[Active state diagram]{A diagram outlining the control flow in core 1 loop during the active state.}
     \label{fig:Active_State_Diagram}
 \end{figure}
 
@@ -407,7 +406,7 @@ After the magnets were manufactured, as discussed in section~\ref{sec: mag manuf
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Diagrams and Images/unit_cell.png}
-    \caption[Unit Cell]{A completed electromagnet consisting of the steel core and copper coil, driving circuit board with signal and power connectors, and 3D printed mount.}\label{fig:unit_cell}
+    \caption[Electromagnet unit cell assembly]{A completed electromagnet consisting of the steel core and copper coil, driving circuit board with signal and power connectors, and 3D printed mount.}\label{fig:unit_cell}
 \end{figure}
 
 \subsubsection{Icosahedral Geometry and Split Plane Design}
@@ -416,7 +415,7 @@ Maintaining spherical symmetry in our design was critical. Rotational inertia, a
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Diagrams and Images/split_plane.png}
-    \caption[Split Plane Design]{The sphere is designed to be split into two halves along a plane that does not intersect any magnets, allowing for easy assembly and maintenance.}\label{fig:split_plane}
+    \caption[Ball shell split plane design]{The sphere is designed to be split into two halves along a plane that does not intersect any magnets, allowing for easy assembly and maintenance.}\label{fig:split_plane}
 \end{figure}
 
 \subsubsection{Integration}
@@ -425,12 +424,12 @@ To connect the current driver boards to the microcontroller and batteries, four 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Diagrams and Images/System_Diagram.png}
-    \caption[Control Boards]{A diagram showing the connections of the various PCBs and components within the sphere.}\label{fig:integration}
+    \caption[System level integration diagram]{A diagram showing the connections of the various PCBs and components within the sphere.}\label{fig:integration}
 \end{figure}
 
 
 \section{Conclusion}
-The primary objective of this project was to develop a three-dimensional spherical robot, capable of moving using the forces generated by internal electromagnets. By successfully integrating twenty individually controlled electromagnets, with a battery supply, IMU and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a ferromagnetic surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
+The primary objective of this project was to develop a three-dimensional spherical robot, capable of moving using the forces generated by interal electromagnets. By successfully integrating twenty individually controlled electromagnets, with a battery supply, IMU and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a steel surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
 
 While this prototype successfully validates the core mechanical, electrical, and software architecture, the current design faces performance bottlenecks primarily related to weak torque generation. This weakness stems from several distinct operational and design limitations:
 \begin{itemize}
@@ -441,33 +440,19 @@ While this prototype successfully validates the core mechanical, electrical, and
 
 \end{itemize}
 \section{Recommendations}
-Our final design shows a promising path forward for a spherical robot propelled by electromagnets. To address the bottlenecks identified in the conclusion and significantly enhance performance, we recommend the following actionable developments for future iterations or capstone projects:
+The transition from the disk to a spherical robot introduces substantial design complexity, particularly in mechanical integration, control, and power systems. To support this next stage of development, we recommend the following key actions:
 
-\vspace{1em}
-\noindent \textbf{1. Integrate Higher Capacity Batteries}\\
-Source and install batteries with higher overall capacity and faster instantaneous discharge capabilities to reliably sustain 20 amps of current.
+\textbf{Develop a 3D-Symmetric Electromagnet Design}\\
+The trident geometry was optimized for planar motion in the disk prototype. For spherical implementation, the electromagnet design should be revised for three-dimensional symmetry to ensure consistent torque generation in all orientations. A proposed 3D design is included in Figure \ref{fig:three_images} (Appendix \ref{Spherical Images Appendix}).
 
-\vspace{1em}
-\noindent \textbf{2. Implement Advanced Magnet Activation Algorithms}\\
-Upgrade the magnet selection logic to handle complex motion planning. Specific avenues to explore include:
-\begin{itemize}
-    \item A cost function optimized to place the ball in future orientations that maximize the number of usable magnets.
-    \item A cost function optimized for the most efficient use of electrical current.
-    \item An improved inertia correction model that dynamically accounts for the ball's current momentum.
-    \item A reinforcement learning algorithm that allows the system to independently learn the optimal magnet selection strategy.
-\end{itemize}
+\textbf{Integrate Optocoupleers and Redesign Driving PCBs}\\
+To protect microcontroller signals from high-power switching noise, optical isolation should be integrated into future PCB designs. A PCB will improve reliability and simplify assembly.
 
-\vspace{1em}
-\noindent \textbf{3. Increase the Number of Magnets}\\
-Scale the internal design to incorporate 32 or more electromagnets. This will improve angular resolution, eliminate large dead zones, and ensure stronger torque generation in arbitrary directions.
+\textbf{Design Modular Spherical Housing}\\
+Each electromagnet functions as an independent subsystem. We recommend designing a modular spherical housing with magnets arranged in an icosahedral geometry (20 faces), which has uniform coverage and ease of assembly or replacement.
 
-\vspace{1em}
-\noindent \textbf{4. Utilize Improved Magnet Materials}\\
-Transition to magnet materials with a superior weight-to-magnetic-force ratio. This will maximize magnetic strength while actively reducing the system's polar moment of inertia.
-
-\vspace{1em}
-\noindent \textbf{5. Explore Sheetless Propulsion Methods}\\
-Investigate entirely new design families that eliminate the need for a ferrous operating surface. One recommended approach is integrating an outer spherical shell filled with ferromagnetic fluid to generate motion by dynamically shifting the system's center of mass rather than relying on external magnetic flux.
+\textbf{Investigate Power Supply Instability}\\
+Although motion control currently performs as expected, the power supplies exhibit unstable behavior. Diagnosing and resolving this issue—potentially caused by inrush currents, back EMF, or insufficient filtering—will be critical for safe and reliable operation.
 
 \section{Deliverables}
 \begin{enumerate}
@@ -480,7 +465,7 @@ Investigate entirely new design families that eliminate the need for a ferrous o
 \begin{thebibliography}{9}
 
 \bibitem{2507_report} 
-Josh Bauman, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
+Josh Bauman, Logan Underwood, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
 
 \bibitem{Jenkins}
 Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance motors.} Charged EVs. Retrieved April 8, 2025, from https://chargedevs.com/features/a-closer-look-at-switched-reluctance-motors/
@@ -500,30 +485,6 @@ Madgwick, S. O. H. (2010, April 30). \textit{An efficient orientation filter for
 
 \appendix
 \setcounter{section}{0}  % Reset section counter
-
-\section{Spherical Magnet Geometry}
-\label{Spherical Images Appendix}
-\begin{figure}[ht]
-    \centering
-    \begin{minipage}{0.3\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{Kris_Visuals/3D Magnet Angle.png}
-        \caption*{}  % Empty caption for the first image
-    \end{minipage} \hfill
-    \begin{minipage}{0.3\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{Kris_Visuals/3D Magnet Front View.png}
-        \caption*{}  % Empty caption for the second image
-    \end{minipage} \hfill
-    \begin{minipage}{0.3\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{Kris_Visuals/3D Magnet Side View.png}
-        \caption*{}  % Empty caption for the third image
-    \end{minipage}
-    
-    \caption[Spherical Electromagnet Design Concept]{Spherical Electromagnet Design Concept}
-    \label{fig:three_images}
-\end{figure}
 
 
 \section{IMU Selection}
@@ -555,7 +516,7 @@ Our telemetry dashboard UI was used as the main graphical interface for testing 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Diagrams and Images/dashboard.png}
-    \caption[Telemetry Dashboard UI]{The telemetry dashboard UI was used as the main graphical interface for testing and operation of the system.}\label{fig:telemetryDashboardUI}
+    \caption[Telemetry dashboard UI]{The telemetry dashboard UI was used as the main graphical interface for testing and operation of the system.}\label{fig:telemetryDashboardUI}
 \end{figure}
 
 \newpage
