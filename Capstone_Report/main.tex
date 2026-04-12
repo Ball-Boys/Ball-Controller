@@ -50,8 +50,8 @@
     Miti Isbasescu\\
     Greg Reid\\[1cm]
 
-    Project 2507\\
-    Applied Science 459\\
+    Project 2553\\
+    Applied Science 479\\
     Boye Ahlborn Engineering Physics Project Laboratory\\
     The University of British Columbia\\
     April 12, 2025
@@ -134,16 +134,26 @@ By breaking the system down into these components, we were able to design and te
 \subsection{Electromagnet Theory and Core Design}
 The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent ferromagnetic plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.4\textwidth]{Kris_Visuals/2026_Magnet_CAD.png}
-    \caption[2026 Magnet Design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
-\end{figure}
+
+The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we can minimize the air gap between the electromagnet and the ferromagnetic plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Notably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a singular location for the flux to be concentrated, which helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
+
+
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Diagrams and Images/example_sim.png}
     \caption[Simulation of Magnetic Flux]{ANSYS simulation of the trident core geometry. The vector field demonstrates how magnetic flux is concentrated through the central pole and outer return paths to minimize reluctance across the air gap.}\label{fig:2026_magnet_design}
+\end{figure}
+
+\subsubsection{Optimization of Coil Winding Count}
+Selecting the ideal wire loop count ($N$) requires balancing magnetic strength against the rotational inertia added by the wire's mass. Because the coil's diameter expands with each loop, inertia scales non-linearly. To maximize the robot's angular acceleration, we optimized the strength-to-inertia ratio subject to a constant thermal limit ($I^2R$). 
+
+Our mathematical model revealed an optimal configuration at $N=202$ loops.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{Kris_Visuals/2026_Magnet_CAD.png}
+    \caption[2026 Magnet Design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
 \end{figure}
 
 
@@ -336,12 +346,6 @@ By utilizing the above formula and the known locations of the magnets in the bal
     \label{eqn:magnet_world_location}
 \end{equation}
 
-\subsubsection*{IMU Selection}
-\label{sec:IMU_selection}
-There were several IMU options we considered for this project. We selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
-
-Our IMU performance was analyzed using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes. We found that the FSM300 had a $10^5$ times lower drift than the BN09X, a cheaper alternative.  
-
 \subsubsection{Magnet Selection}
 \label{sec:magnet_selection}
 To control the rolling motion of the sphere, the system must continuously generate a desired force vector in the global reference frame ($\vec{F}_{\text{world}}$). The user's joystick input dictates a desired two-dimensional velocity. A Proportional-Integral-Derivative (PID) controller compares this input against the sphere's current estimated velocity to calculate the kinematic error, $\vec{e}(t) = \vec{v}_{\text{desired}} - \vec{v}_{\text{current}}$. 
@@ -358,14 +362,9 @@ For each magnet, the algorithm evaluates its angle from the steel plate to find 
 
 The combination (single or pair) that yields the lowest score is selected for activation. Finally, all commanded currents are capped at the current limit. Capping the magnets individually rather than scaling all selected magnets down by the same ratio ensures strength is as high as possible at the cost of changing the angle of the resulting force vector. This tradeoff was made to prioritize responsiveness and agility over precision in the direction of the force vector.
 
-\subsubsection{Optimization of Coil Winding Count}
-Selecting the ideal wire loop count ($N$) requires balancing magnetic strength against the rotational inertia added by the wire's mass. Because the coil's diameter expands with each loop, inertia scales non-linearly. To maximize the robot's angular acceleration, we optimized the strength-to-inertia ratio subject to a constant thermal limit ($I^2R$). 
-
-Our mathematical model revealed an optimal configuration at $N=202$ loops.
 
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
-(TODO: connect this to Josh's comments)
 Given a magnet and a current set point, we use a simple PI controller to select the appropriate duty cycle for the current. Since we are often required to control the current through multiple magnets simultaneously, we run a sequence PI controllers in series. The series operation prevents  overloading the SPI and I2C communication lines with reads and writes. Although the approach doubles the latency of the control loop, it does not negatively impact the macro control properties.
 
 \subsubsection{Active State}
@@ -505,6 +504,19 @@ Madgwick, S. O. H. (2010, April 30). \textit{An efficient orientation filter for
     \caption[Spherical Electromagnet Design Concept]{Spherical Electromagnet Design Concept}
     \label{fig:three_images}
 \end{figure}
+
+
+\section{IMU Selection}
+\label{sec:IMU_selection}
+There were several IMU options we considered for this project. We selected the FSM300, a 9 degree of freedom IMU with an integrated chip that preforms the Madgwick sensor fusion on device. 
+
+Our IMU performance was analyzed using a stable drift test. In this test, we placed the IMU on a stable surface and recorded the output quaternion over 5 minutes.
+\begin{equation}
+    \text{Drift} = \frac{1}{N} \sum_{i=1}^{N} \| q_i - q_{\text{initial}} \|
+\end{equation}
+The FSM300 had a $10^5$ times lower drift than the BN09X, a cheaper alternative.  
+
+
 
 % \newpage
 % \section{Current Sense Amplifier Datasheet}
