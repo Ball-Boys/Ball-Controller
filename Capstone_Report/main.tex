@@ -167,7 +167,7 @@ To build each of the twenty electromagnets, we first waterjet cut the cores from
 \subsubsection{High Level Architecture}
 The attractive force produced by a given electromagnet is directly related to the current flowing through it, so independent control of the current in each electromagnet is necessary to achieve intelligent force modulation and control over the motion of the ball. 
 
-Electrically, the electromagnets can be modelled as a series combination of a resistance $R$ and an inductance $L$. When a voltage is applied across an electromagnet, the current through it rises with an RL exponential characteristic and when the voltage is removed, the current falls with a similar characteristic. By rapidly switching the applied voltage on and off (with MOSFET), the current can be shaped to achieve a desired average value, forming the basis of our current control strategy. Figure \ref{fig:exampleCurrent} illustrates an example electromagnet current waveform with switching driven by a PWM signal.
+Electrically, the electromagnets can be modelled as a series combination of a resistance $R$ and an inductance $L$. When a voltage is applied across an electromagnet, the current through it rises with an RL exponential characteristic and when the voltage is removed, the current falls with a similar characteristic. By rapidly switching the applied voltage on and off (with MOSFET), the current can be shaped to achieve a desired average value, forming the basis of our current control strategy. Figure~\ref{fig:exampleCurrent} illustrates an example electromagnet current waveform with switching driven by a PWM signal.
 
 \begin{figure}[H]
     \centering
@@ -559,12 +559,8 @@ Our telemetry dashboard UI was used as the main graphical interface for testing 
 \end{figure}
 
 \newpage
-\section{ESP32 Control Board}
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{KiCAD Schematics/ESP_Board.png}
-    \caption[ESP32 Control Board]{ESP32 Control Board}
-\end{figure}
+\section{KiCad schematics of power and current distribution boards}
+
 
 % \newpage
 % \section{Gate Driver Datasheet}
