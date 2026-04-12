@@ -60,6 +60,7 @@
 
 \newpage
 \subsection*{Executive Summary}
+This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a ferromagnetic surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
 An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
@@ -108,18 +109,18 @@ As shown in Figure~\ref{fig:Sphere_Torque_Generation}, when an individual electr
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{Kris_Visuals/Ball_torque_image2.png}
-    \caption[Generating torque on the sphere]{The electromagnets around the ball create an attractive force to the ferromagnetic surface (orange arrow), resulting in a rotation about its center (red arrow)}
+    \caption[Generating torque on the sphere]{The electromagnets around the ball create an attractive force to the ferromagnetic surface, resulting in a rotation about its center.}
     \label{fig:Sphere_Torque_Generation}
 \end{figure}
 
 To reduce project risk and aid in early-stage design, we focused our initial efforts on developing a simplified physical prototype: a disk that rotates on a fixed test stand above a ferromagnetic plate. This allowed us to focus on validating magnet designs, build and test the driving electronics, and prototype control software in a more manageable, two-dimensional setup. For more information on last year’s prototype, see the Project 2507 report~\cite{2507_report}.
 
-Building on our previous work, this year we focused on system design, manufacturing, integration, and control. An optimal magnet design was chosen and twenty cores and coils were manufactured, along with twenty identical current control circuits. These isolated electromagnet subsystems were then integrated into a spherical shell geometry, along with the intertial measurement unit (IMU), microcontroller, and batteries. A control architecture was developed to use the IMU data to determine the sphere’s orientation and activate the appropriate electromagnets to maintain motion. Finally, we tested the system’s performance and identified key areas for improvement in future iterations.
+Building on our previous work, this year we focused on system design, manufacturing, integration, and control. A magnet design was chosen and twenty cores and coils were manufactured, along with twenty identical current control circuits. These isolated electromagnet subsystems were then integrated into a spherical shell geometry, along with the intertial measurement unit (IMU), microcontroller, and batteries. A control architecture was developed to use the IMU data to determine the sphere's orientation and activate the appropriate electromagnets to maintain motion. Finally, we tested the system's performance and identified key areas for improvement in future iterations.
 
 \section{Discussion}
 \subsection{System Level Overview}
 
-Our goal was to develop a sphere that has twenty electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from the main batteries and communicates with the microcontroller. The microcontroller also receives data from the IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
+Our goal was to develop a sphere with electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from LiPo batteries and communicates with a microcontroller. The microcontroller also receives data from an IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
 
 \begin{figure}[h]
     \centering
@@ -136,7 +137,7 @@ By breaking the system down into these components, we were able to design and te
 The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent ferromagnetic plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
 
 
-The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we can minimize the air gap between the electromagnet and the ferromagnetic plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Notably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a singular location for the flux to be concentrated, which helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
+The strength of this force is directly related to the magnetic flux ($\Phi$) flowing through the system. Magnetic flux is driven by magnetomotive force (MMF), analogous to voltage in electrical circuits, and opposed by magnetic reluctance ($\mathcal{R}$), which plays a role similar to electrical resistance. To decrease the reluctance and increase the flux, we minimize the air gap between the electromagnet and the ferromagnetic plate, and use a core material with high permeability. Following detailed testing and analysis outlined in our previous report~\cite{2507_report}, we designed the magnets as shown in Figure~\ref{fig:2026_magnet_design}. Notably, the three-pronged design allows for a stronger magnetic field when it is further from the plate due to the outer ``wings'', and the central ``pole'' ensures that there is a single equilibrium position as the magnet approaches the plate. This helps with stability and control. For an in-depth discussion of the design process, see section 2.2.2 of~\cite{2507_report}.
 
 
 
@@ -166,36 +167,35 @@ To build each of the twenty electromagnets, we first waterjet cut the cores from
 \subsubsection{High Level Architecture}
 The attractive force produced by a given electromagnet is directly related to the current flowing through it, so independent control of the current in each electromagnet is necessary to achieve intelligent force modulation and control over the motion of the ball. 
 
-Electrically, the electromagnets can be modelled as a series combination of a resistance $R$ and an inductance $L$. When a voltage is applied across an electromagnet, the current through it rises with an RL exponential characteristic and when the voltage is removed, the current falls with a similar characteristic. By rapidly switching the applied voltage on and off (with MOSFET), the current can be shaped to achieve a desired average value, forming the basis of our current control strategy. Figure~\ref{fig:exampleCurrent} illustrates an example electromagnet current waveform with switching driven by a PWM signal.
+Electrically, the electromagnets can be modelled as a series combination of a resistance $(R)$ and an inductance $(L)$. When a voltage is applied across an electromagnet, the current through it rises with an RL exponential characteristic and when the voltage is removed, the current falls with a similar characteristic. By rapidly switching the applied voltage with a MOSFET, the current can be shaped to achieve a desired average value, forming the basis of our current control strategy. Figure~\ref{fig:exampleCurrent} illustrates an example electromagnet current waveform with switching driven by a PWM signal.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/exampleElectromagnetCurrent.png}
-    \caption[Example waveforms of electromagnet current due to MOSFET switching]{Illustrative example of the current through an electromagnet as it is modulated through the switching of an applied voltage. When the switch is closed, the current rises with an RL exponential characteristic, and when the switch is opened, the current falls an RL exponential characteristic. The average current can be modulated by changing the duty cycle of the PWM signal, and the current ripple can be reduced by increasing the PWM switching frequency. The ripple in this example is exaggerated for illustrative purposes, but in practice with switching at frequencies in the 10's of kHz, ripple can be reduced to less than a few percent of the average current.}
+    \caption[Example waveforms of electromagnet current due to MOSFET switching]{Illustrative example of the current through an electromagnet as it is modulated through the switching of an applied voltage. When the switch is closed, the current rises with an RL exponential characteristic, and when the switch is opened, the current falls with an RL exponential characteristic. The average current can be modulated by changing the duty cycle of the PWM signal, and the current ripple can be reduced by increasing the PWM switching frequency. The ripple in this example is exaggerated for illustrative purposes, but in practice with switching at frequencies in the 10's of kHz, ripple can be reduced to less than a few percent of the average current.}
     \label{fig:exampleCurrent}
 \end{figure}
 
-Figure \ref{fig:Schematic} shows the high level architecture used to implement this control strategy. The switching of current through an electromagnet can give rise to large voltage spikes due to inductor kickback if not handled properly. A 'flyback' diode is used to provide a path for the electromagnet current to discharge safely when the switch is opened, and to also avoid abrupt drops in current which would otherwise degrade controllability. Furthermore, the instantaneous current through the electromagnet is monitored using a shunt resistor and differential amplifier, providing feedback for closed-loop control of the current. Based on this current measurement and the desired current, an ESP32 modulates the duty cycle of the MOSFET gate PWM signal to achieve the target current. 
+Figure \ref{fig:Schematic} shows the high level architecture used to implement this control strategy. The switching of current through an electromagnet can give rise to large voltage spikes due to inductor kickback if not handled properly. A flyback diode is used to provide a path for the electromagnet current to discharge safely when the switch is opened, and to also avoid abrupt drops in current which would otherwise degrade controllability. The instantaneous current through the electromagnet is monitored using a shunt resistor and differential amplifier, providing feedback for closed-loop control of the current. Based on this current measurement and the desired current, an ESP32 modulates the duty cycle of the MOSFET gate PWM signal to achieve the target current. 
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.4\textwidth]{Circuit Visuals/Circuit Schematic.png}
+    \includegraphics[width=0.3\textwidth]{Circuit Visuals/Circuit Schematic.png}
     \caption[High-level current driver circuit architecture]{High-level architecture of the electromagnet current driver circuit}
     \label{fig:Schematic}
 \end{figure}
 
 \subsubsection{Design}
-The final schematic for the implementation of the current driver is shown in Figure \ref{fig:kiCadSchematic}.
+The final schematic for the implementation of the current driver is shown in Figure \ref{fig:kiCadSchematic}. The following sections reference components directly from the schematic.
 
-
-\begin{figure}[H]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/driverSchematicKiCad.png}
     \caption[Current driver circuit KiCad schematic]{Final KiCad schematic for electromagnet current driver circuit}~\label{fig:kiCadSchematic}
 \end{figure}
 
-\textbf{Switching Stage}\\
-A gate driver (U2) is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which limit the gate charging current. Figure~\ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$, which is used in the final design (R1, R2). The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to less than 4 V overshoot from supply.
+\subsubsection*{Switching Stage}
+A gate driver (U2) is used to drive the gate of the MOSFET, providing the necessary voltage and current to charge and discharge the gate capacitance quickly, reducing switching losses in the MOSFET. This fast switching allows for higher PWM frequencies, which reduces current ripple, while maintaining tolerable heat dissipation. On turn off events, there is some finite time that the flyback diode takes to conduct and allow the current to discharge. For very fast switching speeds, this can lead to a large drain-source voltage overshoot that can damage the MOSFET. To mitigate this, we limit the switching speed using gate resistors which set the gate charging current. Figure~\ref{fig:gateResComparison}, shows the effect of increasing the gate resistance from 1 $\Omega$ to 13.3 $\Omega$, which is used in the final design (R1, R2). The effect is to bring the voltage overshoot down from the near the MOSFET's maximum drain-source voltage rating of 30 V to less than 4 V overshoot from supply.
 
 \begin{figure}[H]
     \centering
@@ -213,11 +213,10 @@ A gate driver (U2) is used to drive the gate of the MOSFET, providing the necess
     \caption[Driver circuit scope traces of MOSFET $V_{DS}$ overshoot during gate resistance tuning.]{Drain-source voltage overshoot on turn off events with different gate resistance values. The gate resistors limit the switching speed of the MOSFET, which reduces the voltage overshoot and protects the MOSFET from damage.}~\label{fig:gateResComparison}
 \end{figure}
 
+\subsubsection*{Current Sensing}
+The shunt resistor and differential amplifier are selected to provide optimal accuracy and resolution. A 5 m$\Omega$ shunt (R3) was selected to keep power loss small. Care was taken to select a shunt resistor with low parasitic inductance to minimize di/dt noise in the current measurement. A TI INA180 current sense amplifer (U4) was selected having a gain of 50 V/V giving a measureable current range of 0-13.2 A with its 3.3 V output range. An RC lowpass filter (R6, C4) with 5 kHz cuttoff is used on the output to attenuate high frequency switching noise before the signal is given to the ADC.
 
-\textbf{Current Sensing}\\
-The shunt resistor and differential amplifier are selected to provide optimal accuracy and resolution. A 5 m$\Omega$ shunt (R3) was selected to keep power loss small. Care was taken to select a shunt resistor with low parasitic inductance to minimize di/dt noise in the current measurement. A TI INA180 current sense amplifer (U4) was selected having a gain of 50 V/V giving a measureable current range of 0-13.2 A with its 3.3 V output range. An RC lowpass filter (R6,C4) with 5 kHz cuttoff is used on the output to attenuate high frequency switching noise before the signal is given to the ADC.
-
-\textbf{Power}\\
+\subsubsection*{Power}
 Each current driver requires two voltage supply levels to support its operation. The electromagnets must be supplied with high enough voltage to deliver currents up to 10A (based on magnet testing and determined magnet force requirements) through a ${\sim}1\,\Omega$ load (electromagnet series resistance). Additionally a higher supply voltage will increase the rate at which current can rise and fall through the electromagnets, improving responsiveness. To balance battery size and performance, a 14.7 V rail was determined to be sufficient. 
 
 A 3.3 V supply is also required to power the current sense amplifier. This is supplied by the ESP32's internal voltage regulator, to ensure proper referenceing between the amplifier and the microcontroller. In this driver architecture, the gate drive is supplied with the same 14.7 V supply as the electromagnets. When the electromagnets pull current, stray inductance between the magnet terminal and the battery leads cause the supply voltage to sag. If the supply sags too low, the gate driver may enter a lock-out mode, preventing it from driving the MOSFET. A sag in supply voltage also degrades the performance of the current driver since the electromagnet is being driven with a lower voltage. To solve this issue, a large 100 $\mu$F electrolytic capacitor (C2) is placed across the supply rails on the current driver board to provide a local charge reservoir for the current driver to source current from. A small 68 $nF$ (C3) ceramic capacitor is placed in parallel to the electrolytic to filter out high frequency noise on the supply.
@@ -233,7 +232,7 @@ Figure \ref{fig:unitCellDiagram} shows the final unit cell magnet actuator, whic
     \caption[Current driver circuit information flow diagram]{Unit cell magnet actuator. PWM signal from microcontroller is input to the current driver board. Analog current sense signal is sent to ADC on microcontroller board creating closed loop feedback scheme. 14.7 V battery supply is used to power the electromagnet, and 3.3 V supplied from microcontroller is used to power the current sense amplifier.}\label{fig:unitCellDiagram}
 \end{figure}
 
-Looking at the step response of electromagnet current given a setpoint command from the microcontroller, we tuned the PID control of the current driver to achieve responsive behavior. Figure \ref{fig:stepResponse} shows the current response to a step change in the current setpoint.
+Looking at the step response of electromagnet current given a setpoint command from the microcontroller, we tuned the PI controller of the current driver to achieve responsive behavior. Figure \ref{fig:stepResponse} shows the response to a step change in the current setpoint.
 
 \begin{figure}[H]
     \centering
@@ -246,20 +245,16 @@ Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneo
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{Diagrams and Images/currentTest.png}
-    \caption[Scope traces of simultaneous electromagnet control of three electromagnets]{Simultaneous control of 3 electromagnets. Commanded waveform is a 2 Hz, 4A peak-to-peak sine wave on each.}\label{fig:currentTest}
+    \caption[Scope traces of simultaneous electromagnet control of three electromagnets]{Simultaneous control of 3 electromagnets. Commanded waveform is a 2 Hz, 4A peak-to-peak sine wave on each electromagnet.}\label{fig:currentTest}
 \end{figure}
 
-
-
 \subsection{Software Architecture}
-The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
-
 \subsubsection{Background}
-The high level goal of the software is to coordinate the current going through each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: 
+The high-level goal of the software is to coordinate the actuation of all electromagnets, to produce motion in a desired direction indicated by a user-input. To accomplish this, the software must: 
 \begin{enumerate}
-    \item Location of each magnet relative to the origin of the ball
-    \item Selection of which magnet to activate
-    \item Calibration between the joystick and the ball. 
+    \item Track the location of each electromagnet relative to the origin of the ball as it moves through space.
+    \item Determine which electromagnets to activate to produce motion in the desired direction.
+    \item Calibrate the initial orientation between the joystick and the ball. 
 \end{enumerate}
 
 \begin{figure}[h]
@@ -269,20 +264,20 @@ The high level goal of the software is to coordinate the current going through e
     \label{fig:Software_Overview}
 \end{figure}
 
-The ball and dashboard software integrates to create a cohesive experience for the user. 
+The integration of the ball firmware with a telemetry dashboard UI creates a cohesive experience for the user. 
 
 
 \subsubsection{Data Communication Overview}
-Since our ball will rotate omnidirectionally, a wired data transmission makes little sense. We choose to implement a Wi-Fi based communication hosted on the ESP that the dashboard would connect to. 
+Since our ball rotates omnidirectionally, wired data transmission is not practical. We chose to implement a Wi-Fi based communication hosted on the ESP that the dashboard connects to. 
 
 \begin{figure}
     \centering
     \includegraphics[width=0.75\textwidth]{Diagrams and Images/communication-diagram.png}
-    \caption[Communications diagram]{A diagram outlining the communication between the user interface and the ball.}
+    \caption[Communications diagram]{Our ball is controlled by a joystick input which gives directional commands, fixed to the user's frame.}
     \label{fig:Communication_Diagram}
 \end{figure}
 
-Our outgoing data packet size was $276$ bytes communicated at a rate of $10 \: \text{Hz}$ gives us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within abilities of Wi-Fi data transmission. Inbound data to the ESP small consisting a few bytes at sporadic intervals, so they do not meaningfully contribute to the data rate.
+Our outgoing data packet size is $276$ bytes communicated at a rate of $10 \: \text{Hz}$ giving us a data rate of $2.76 \frac{\text{kB}}{\text{s}}$ which is well within the abilities of Wi-Fi data transmission. Inbound data to the ESP consists of only a few bytes at sporadic intervals. These do not meaningfully contribute to the data rate.
 
 \subsubsection{State Machine}
 Our on device state management is implemented as a state machine. An outline of the state machine is shown in Figure \ref{fig:State_Machine}. 
@@ -316,7 +311,7 @@ There are a couple of popular methods for rotation tracking, 2 common approaches
     \begin{minipage}{0.49\textwidth}
         \centering
         \includegraphics[width=0.98\textwidth]{Diagrams and Images/quaternion-basics.png}
-        \caption[Quaternion]{A quaternion is a mathematical object similar to a vector of size 4 that can represent the orientation of an object in 3D space.}
+        \caption[Quaternion description]{A quaternion is a mathematical object similar to a vector of size 4 that can represent the orientation of an object in 3D space.}
     \end{minipage}
     \label{fig:angle_tracking_options}
 \end{figure}
@@ -401,7 +396,7 @@ The inbound data from the dashboard uses a polling approach. When a new directio
 
 \subsection{Mechanical Design}
 \subsubsection{Unit Cells}
-After the magnets were manufactured, as discussed in section~\ref{sec: mag manufacturing}, we fastened the cores to the driving circuit boards and a 3d printed mount using bolts. The magnet wire was soldered directly to the PCB, and the power and signal connections were also soldered directly, to minimize the number of connectors and potential points of failure. An image of the completed unit cell is shown in Figure~\ref{fig:unit_cell}. The addition of the 3d printed mount was necessary to provide easy installation in the ball.
+After the magnets were manufactured, as discussed in section~\ref{sec: mag manufacturing}, we fastened the cores to the driving circuit boards and a 3D printed mount. The magnet leads, power wires, and signal connections were soldered directly to the PCB to minimize the number of connectors and potential points of failure. An image of the completed unit cell is shown in Figure~\ref{fig:unit_cell}. The 3D printed mount was necessary to provide easy installation in the ball.
 
 \begin{figure}[h]
     \centering
@@ -410,7 +405,7 @@ After the magnets were manufactured, as discussed in section~\ref{sec: mag manuf
 \end{figure}
 
 \subsubsection{Icosahedral Geometry and Split Plane Design}
-Maintaining spherical symmetry in our design was critical. Rotational inertia, available torque generation, and control complexity are simplified when the system behaves the same in all orientations. From our previous work, and magnet design testing, we found that the magnets were only effective when they were rotated to within 45 degrees of the steel plate. These requirements led us to an icosahedral geometry which has twenty faces that are equally spaced around the surface, with 42 degree angles between magnet centers. This allows us to place one magnet at the center of each face. We designed the sphere to be split into two hemispheres along an edge of the icosahedron, ensuring that no magnets are located on the split plane. This design choice allows for access to the internal components without the need to remove any magnets. See figure~\ref{fig:split_plane} for an image of the split plane design and how the two halves of the sphere combine.
+Maintaining spherical symmetry in our design was critical. Rotational inertia, available torque generation, and control complexity are simplified when the system behaves the same in all orientations. From our previous work, and magnet design testing, we found that the magnets were only effective when they were rotated to within 45 degrees of the steel plate normal. These requirements led us to an icosahedral geometry which has twenty faces that are equally spaced around the surface, with 42 degree angles between face centers. This allows us to place one magnet at the center of each face. We designed the sphere to be split into two hemispheres along an edge of the icosahedron, ensuring that no magnets are located on the split plane. This design choice allows for access to the internal components without the need to remove any magnets. See figure~\ref{fig:split_plane} for an image of the split plane design and how the two halves of the sphere combine.
 
 \begin{figure}[h]
     \centering
@@ -419,7 +414,7 @@ Maintaining spherical symmetry in our design was critical. Rotational inertia, a
 \end{figure}
 
 \subsubsection{Integration}
-To connect the current driver boards to the microcontroller and batteries, four PCBs were designed and built, shown in Figure~\ref{fig:integration}. The two power distribution boards provide the battery power to the twenty current driver boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the current driver boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller and send individual PWM signals to each magnet. The microcontroller board also connected to an IMU board using I2C. Each half of the sphere contains ten magnets, and a power distribution board. The signal distribution board pairs with a smaller board in the second half to route the signals to those driver boards.
+To connect the current driver boards to the microcontroller and batteries, four PCBs were designed and built, shown in Figure~\ref{fig:integration}. The two power distribution boards provide the battery power to the twenty current driver boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the current driver boards. The main microcontroller board has three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller and send individual PWM signals to each magnet. The microcontroller board is connected to an IMU board using I2C. Each half of the sphere contains ten magnets, and a power distribution board. The ESP control board connects to a smaller signal distribution board in the second half to connect the two halves while using only one ESP.
 
 \begin{figure}[h]
     \centering
@@ -429,7 +424,7 @@ To connect the current driver boards to the microcontroller and batteries, four 
 
 
 \section{Conclusion}
-The primary objective of this project was to develop a three-dimensional spherical robot, capable of moving using the forces generated by interal electromagnets. By successfully integrating twenty individually controlled electromagnets, with a battery supply, IMU and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a steel surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
+The primary objective of this project was to develop a three-dimensional spherical robot, capable of moving using the forces generated by internal electromagnets. By successfully integrating twenty individually controlled electromagnets, with a battery supply, IMU and microcontroller, we have proven that internal electromagnetic propulsion is a viable method for achieving motion along a ferromagnetic surface. The successful implementation of the state machine algorithm demonstrates that the system can perform the complex, real-time orientation calculations required to activate the correct electromagnets for sustained movement.
 
 While this prototype successfully validates the core mechanical, electrical, and software architecture, the current design faces performance bottlenecks primarily related to weak torque generation. This weakness stems from several distinct operational and design limitations:
 \begin{itemize}
@@ -440,19 +435,33 @@ While this prototype successfully validates the core mechanical, electrical, and
 
 \end{itemize}
 \section{Recommendations}
-The transition from the disk to a spherical robot introduces substantial design complexity, particularly in mechanical integration, control, and power systems. To support this next stage of development, we recommend the following key actions:
+Our final design shows a promising path forward for a spherical robot propelled by electromagnets. To address the bottlenecks identified in the conclusion and significantly enhance performance, we recommend the following actionable developments for future iterations or capstone projects:
 
-\textbf{Develop a 3D-Symmetric Electromagnet Design}\\
-The trident geometry was optimized for planar motion in the disk prototype. For spherical implementation, the electromagnet design should be revised for three-dimensional symmetry to ensure consistent torque generation in all orientations. A proposed 3D design is included in Figure \ref{fig:three_images} (Appendix \ref{Spherical Images Appendix}).
+\vspace{1em}
+\noindent \textbf{1. Integrate Higher Capacity Batteries}\\
+Source and install batteries with higher overall capacity and faster instantaneous discharge capabilities to reliably sustain 20 amps of current.
 
-\textbf{Integrate Optocoupleers and Redesign Driving PCBs}\\
-To protect microcontroller signals from high-power switching noise, optical isolation should be integrated into future PCB designs. A PCB will improve reliability and simplify assembly.
+\vspace{1em}
+\noindent \textbf{2. Implement Advanced Magnet Activation Algorithms}\\
+Upgrade the magnet selection logic to handle complex motion planning. Specific avenues to explore include:
+\begin{itemize}
+    \item A cost function optimized to place the ball in future orientations that maximize the number of usable magnets.
+    \item A cost function optimized for the most efficient use of electrical current.
+    \item An improved inertia correction model that dynamically accounts for the ball's current momentum.
+    \item A reinforcement learning algorithm that allows the system to independently learn the optimal magnet selection strategy.
+\end{itemize}
 
-\textbf{Design Modular Spherical Housing}\\
-Each electromagnet functions as an independent subsystem. We recommend designing a modular spherical housing with magnets arranged in an icosahedral geometry (20 faces), which has uniform coverage and ease of assembly or replacement.
+\vspace{1em}
+\noindent \textbf{3. Increase the Number of Magnets}\\
+Scale the internal design to incorporate 32 or more electromagnets. This will improve angular resolution, eliminate large dead zones, and ensure stronger torque generation in arbitrary directions.
 
-\textbf{Investigate Power Supply Instability}\\
-Although motion control currently performs as expected, the power supplies exhibit unstable behavior. Diagnosing and resolving this issue—potentially caused by inrush currents, back EMF, or insufficient filtering—will be critical for safe and reliable operation.
+\vspace{1em}
+\noindent \textbf{4. Utilize Improved Magnet Materials}\\
+Transition to magnet materials with a superior weight-to-magnetic-force ratio. This will maximize magnetic strength while actively reducing the system's polar moment of inertia.
+
+\vspace{1em}
+\noindent \textbf{5. Explore Sheetless Propulsion Methods}\\
+Investigate entirely new design families that eliminate the need for a ferrous operating surface. One recommended approach is integrating an outer spherical shell filled with ferromagnetic fluid to generate motion by dynamically shifting the system's center of mass rather than relying on external magnetic flux.
 
 \section{Deliverables}
 \begin{enumerate}
@@ -465,7 +474,7 @@ Although motion control currently performs as expected, the power supplies exhib
 \begin{thebibliography}{9}
 
 \bibitem{2507_report} 
-Josh Bauman, Logan Underwood, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
+Josh Bauman, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
 
 \bibitem{Jenkins}
 Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance motors.} Charged EVs. Retrieved April 8, 2025, from https://chargedevs.com/features/a-closer-look-at-switched-reluctance-motors/
@@ -521,7 +530,6 @@ Our telemetry dashboard UI was used as the main graphical interface for testing 
 
 \newpage
 \section{KiCad schematics of power and current distribution boards}
-
 
 % \newpage
 % \section{Gate Driver Datasheet}
