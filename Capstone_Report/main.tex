@@ -130,9 +130,9 @@ Building on our previous work, this year we focused on system design, manufactur
 
 By breaking the system down into these components, we were able to design and test each one in isolation. This modular approach allowed us to develop the electromagnets independently, while creating and refining the driving circuit in parallel.
 
-\subsection{Electromagnet}
-\subsubsection{Theory}
 
+\subsection{Electromagnet Theory and Core Design}
+The operation of the electromagnets relies on fundamental principles of magnetic circuit theory. When current flows through the coil of an electromagnet, it produces a magnetic field that magnetizes both its ferromagnetic core and the adjacent ferromagnetic plate. This magnetization leads to the formation of two oppositely polarized magnetic regions, resulting in a strong attractive force.
 
 \begin{figure}[H]
     \centering
@@ -140,8 +140,12 @@ By breaking the system down into these components, we were able to design and te
     \caption[2026 Magnet Design]{The final design of our electromagnets, which we found to be the most effective in testing.}\label{fig:2026_magnet_design}
 \end{figure}
 
-\subsubsection{Core Design}
-TODO: Delete at end.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{Diagrams and Images/example_sim.png}
+    \caption[Simulation of Magnetic Flux]{ANSYS simulation of the trident core geometry. The vector field demonstrates how magnetic flux is concentrated through the central pole and outer return paths to minimize reluctance across the air gap.}\label{fig:2026_magnet_design}
+\end{figure}
+
 
 \subsubsection{Manufacturing}\label{sec: mag manufacturing}
 
@@ -340,7 +344,24 @@ Our IMU performance was analyzed using a stable drift test. In this test, we pla
 
 \subsubsection{Magnet Selection}
 \label{sec:magnet_selection}
-TODO (left for LEVI)
+To control the rolling motion of the sphere, the system must continuously generate a desired force vector in the global reference frame ($\vec{F}_{\text{world}}$). The user's joystick input dictates a desired two-dimensional velocity. A Proportional-Integral-Derivative (PID) controller compares this input against the sphere's current estimated velocity to calculate the kinematic error, $\vec{e}(t) = \vec{v}_{\text{desired}} - \vec{v}_{\text{current}}$. 
+
+By minimizing this velocity error, the controller outputs the required global corrective force:
+\begin{equation}
+    \vec{F}_{\text{world}} = K_p \vec{e}(t) + K_i \int_{0}^{t} \vec{e}(\tau) d\tau + K_d \frac{d\vec{e}(t)}{dt}
+\end{equation}
+
+For each magnet, the algorithm evaluates its angle from the steel plate to find its expected torque from a lookup table based on data from the test stand. To find the optimal combination of magnets to match the desired force, the system evaluates both individual candidates and pairs by minimizing a cost function. This function balances the target force error against an electrical current ($I_j$) penalty ($\lambda$):
+\begin{equation}
+    \text{Score} = \left\| \vec{F}_{\text{body}} - \sum_{j} (\vec{v}_j I_j) \right\| + \lambda \sum_{j} I_j
+\end{equation}
+
+The combination (single or pair) that yields the lowest score is selected for activation. Finally, all commanded currents are capped at the current limit. Capping the magnets individually rather than scaling all selected magnets down by the same ratio ensures strength is as high as possible at the cost of changing the angle of the resulting force vector. This tradeoff was made to prioritize responsiveness and agility over precision in the direction of the force vector.
+
+\subsubsection{Optimization of Coil Winding Count}
+Selecting the ideal wire loop count ($N$) requires balancing magnetic strength against the rotational inertia added by the wire's mass. Because the coil's diameter expands with each loop, inertia scales non-linearly. To maximize the robot's angular acceleration, we optimized the strength-to-inertia ratio subject to a constant thermal limit ($I^2R$). 
+
+Our mathematical model revealed an optimal configuration at $N=202$ loops.
 
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
