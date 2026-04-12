@@ -60,6 +60,7 @@
 
 \newpage
 \subsection*{Executive Summary}
+This report details the development of an untethered spherical robot that utilizes internal electromagnets for motion and directional control along a ferromagnetic surface. Building upon a previous two-dimensional tethered prototype, the current iteration successfully integrates twenty individually controlled electromagnets within a fully enclosed spherical shell.
 
 An onboard control system, utilizing an inertial measurement unit (IMU) and a state machine algorithm, calculates the real-time orientation of the sphere to dynamically activate the optimal electromagnets for sustained motion.
 
@@ -120,6 +121,8 @@ Building on our previous work, this year we focused on system design, manufactur
 \section{Discussion}
 \subsection{System Level Overview}
 
+Our goal was to develop a sphere that has twenty electromagnets positioned around its surface, each with its own dedicated driving circuit which can control the current in the electromagnet. Every driving circuit receives power from the main batteries and communicates with the microcontroller. The microcontroller also receives data from the IMU, which it uses to determine the current orientation of the sphere. Based on this information, the microcontroller sends commands to the driving circuits to activate the appropriate electromagnets to maintain motion.
+
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Diagrams and Images/work_in_progress.png}
@@ -158,6 +161,7 @@ Our mathematical model revealed an optimal configuration at $N=202$ loops.
 
 
 \subsubsection{Manufacturing}\label{sec: mag manufacturing}
+To build each of the twenty electromagnets, we first waterjet cut the cores from ferromagnetic plates, and then wound copper coils using a winding jig and custom mounts and sleeves. The mass and resistance ($\approx 0.9 \Omega$) of each magnet was measured and recorded to ensure consistency.
 
 \subsection{Magnet Driver Electronics}
 
@@ -254,7 +258,7 @@ Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneo
 
 
 \subsection{Software Architecture}
-The software systems connects all system components allowing the system to function. This section will discuss the high level goals of the system and will discuss some of the implementation details of the system. 
+The software connects all the balls magnets and orientation sensing components. This section will discuss the high level goals of the software and will discuss the implementation details of the system. 
 
 \subsubsection{Background}
 The high level goal of the software is to coordinate the current going through each magnet to deliver motion in a desired direction indicated by the joystick. To accomplish this, the software must be able to determine the: 
@@ -380,7 +384,7 @@ Given a magnet and a current set point, we use a simple PI controller to select 
 \label{sec:active}
 In the active state, our ESP runs 2 separate processes, one on each core on the esp. One core is reasonable for receiving and sending data to the dashboard. The other core is responsible for the orientation tracking, magnet selection, and magnet current control. 
 
-The two cores communicate through a globally shared object that contains the current state of the system. All shared memory is protected by mutexes to prevent race conditions between cores. More detail on the shared data between cores can be found in (appendix TODO: add section on shared data).
+The two cores communicate through a globally shared object that contains the current state of the system. All shared memory between cores is protected by mutexes to prevent race conditions between cores.
 
 \begin{figure}[h]
     \centering
@@ -432,7 +436,13 @@ Maintaining spherical symmetry in our design was critical. Rotational inertia, a
 \end{figure}
 
 \subsubsection{Integration}
-To connect the electromagnet boards to the microcontroller and power supply, four PCBs were designed and built. The power distribution boards take the main power supply and distribute it to the twenty electromagnet boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the appropriate electromagnet boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all of the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller. The microcontroller board also connected to an IMU board using I2C.
+To connect the current driver boards to the microcontroller and batteries, four PCBs were designed and built, shown in Figure~\ref{fig:integration}. The two power distribution boards provide the battery power to the twenty current driver boards, while the signal distribution board takes the microcontroller’s control signals and routes them to the current driver boards. The main microcontroller board had three eight-channel analog to digital converters (ADCs) which read the current sense amplifier outputs and multiplex the signals to send to the microcontroller. Additionally, two sixteen-channel PWM drivers control the gate drivers, with ten magnets per driver. The ADCs use SPI protocol and scan all of the input signals, while the PWM drivers used the I2C protocol to communicate with the microcontroller and send individual PWM signals to each magnet. The microcontroller board also connected to an IMU board using I2C. Each half of the sphere contains ten magnets, and a power distribution board. The signal distribution board pairs with a smaller board in the second half to route the signals to those driver boards.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Diagrams and Images/System_Diagram.png}
+    \caption[Control Boards]{A diagram showing the connections of thevarious PCBs and components within the sphere.}\label{fig:integration}
+\end{figure}
 
 
 \section{Conclusion}
@@ -486,7 +496,7 @@ Investigate entirely new design families that eliminate the need for a ferrous o
 \begin{thebibliography}{9}
 
 \bibitem{2507_report} 
-Josh Bauman, Logan Underwood, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
+Josh Bauman, Kristopher Kirkwood, Levi Varsanyi, Lucas Henderson, \textit{Project 2507: ELECTROMAGNETIC SPHERICAL ROBOT}, UBC Engineering Physics Project Lab, 2025.
 
 \bibitem{Jenkins}
 Jenkins, J. (2013, January 25). \textit{A closer look at switched reluctance motors.} Charged EVs. Retrieved April 8, 2025, from https://chargedevs.com/features/a-closer-look-at-switched-reluctance-motors/
