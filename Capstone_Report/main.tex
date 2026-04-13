@@ -352,7 +352,7 @@ The combination (single or pair) that yields the lowest score is selected for ac
 \subsubsection{Optimization of Coil Winding Count}
 Selecting the ideal wire loop count ($N$) requires balancing magnetic strength against the rotational inertia added by the wire's mass. Because the coil's diameter expands with each loop, inertia scales non-linearly. To maximize the robot's angular acceleration, we optimized the strength-to-inertia ratio subject to a constant thermal limit ($I^2R$). 
 
-Our mathematical model revealed an optimal configuration at $N=202$ loops.
+Our mathematical model revealed an optimal configuration at $N=202$ loops. See Appendix \ref{sec:coil_optimization} for a detailed derivation of the ideal loop count calculations.
 
 \subsubsection{Magnet Current Control}
 \label{sec:magnet_current_control}
@@ -555,6 +555,49 @@ Madgwick, S. O. H. (2010, April 30). \textit{An efficient orientation filter for
     \label{fig:three_images}
 \end{figure}
 
+
+\section{Derivation of Optimal Coil Winding Count}
+\label{sec:coil_optimization}
+
+To maximize the angular acceleration of the spherical robot, we must maximize the ratio of magnetic torque to total rotational inertia. Changing the number of wire loops ($N$) alters the magnetic strength, the electrical resistance (and thus thermal limits), and the mass of the coils.
+
+\subsection*{1. Geometric Mass Model}
+The total mass of the wire scales non-linearly with $N$ because the coil's diameter expands with each wrap, increasing the length of wire required per loop. Based on the physical prototype, the coil has an inner diameter $D_{\text{inner}} = 16$~mm. At $N=250$, the outer diameter is $D_{\text{outer}} = 42$~mm. 
+
+Approximating the coil growth as a continuous sheet, the thickness added per loop is $t = (42 - 16) / (2 \cdot 250) = 0.052$~mm. The average diameter at any loop count is $D_{\text{avg}} = (D_{\text{inner}} + D_{\text{outer}}) / 2$. Because the wire's total weight $W(N)$ is proportional to $N \cdot D_{\text{avg}}$, we establish the function:
+\begin{equation}
+    W(N) \propto N(0.052N + 16)
+\end{equation}
+
+\subsection*{2. Rotational Inertia Model}
+The rotational inertia of the sphere is the sum of the base sphere's inertia ($J_{\text{base}}$) and the inertia contributed by the eight electromagnets ($J_{\text{coils}}$). 
+
+Our initial prototype ($N=250$) had an estimated total inertia of $0.033 \text{ kg}\cdot\text{m}^2$. The twenty 100~g coils contributed approximately $0.00895 \text{ kg}\cdot\text{m}^2$ to this total, allowing us to isolate the base inertia:
+$$J_{\text{base}} = 0.033 - 0.00895 = 0.02405 \text{ kg}\cdot\text{m}^2$$
+
+Since the coil inertia scales linearly with coil mass, we use the geometric mass model to define the total rotational inertia as a function of $N$:
+\begin{equation}
+    J(N) = 0.02405 + 1.236 \times 10^{-6} \cdot N(0.052N + 16)
+\end{equation}
+
+\subsection*{3. Thermal Constraint and Magnetic Strength}
+To prevent overheating, the power dissipated as heat ($P = I^2R$) must remain constant. The electrical resistance $R$ is directly proportional to the total length of the wire, meaning $R(N) \propto W(N)$. To maintain a constant heat output, the allowable current $I(N)$ must be adjusted according to:
+\begin{equation}
+    I_1^2 R_1 = I_2^2 R_2 \implies I(N) = I_{250} \sqrt{\frac{W(250)}{W(N)}} \propto \frac{1}{\sqrt{N(0.052N + 16)}}
+\end{equation}
+
+Magnetic strength ($S$) scales linearly with Amp-turns ($NI$). Substituting the thermally constrained current yields a strength function that increases with $N$, but with diminishing returns due to the expanding resistance:
+\begin{equation}
+    S(N) = N \cdot I(N) \propto \frac{N}{\sqrt{N(0.052N + 16)}}
+\end{equation}
+
+\subsection*{4. Optimization}
+Angular acceleration ($\alpha$) is proportional to $\frac{\text{Torque}}{\text{Inertia}}$. Assuming torque scales linearly with magnetic strength (which in our region of operation is a valid assumption), we define our objective function to maximize:
+\begin{equation}
+    f(N) = \frac{S(N)}{J(N)} = \frac{N}{\sqrt{N(0.052N + 16)} \left( 0.02405 + 1.236 \times 10^{-6} \cdot N(0.052N + 16) \right)}
+\end{equation}
+
+Evaluating the derivative $f'(N) = 0$ identifies a global maximum at $N = 202$ loops. At this optimal configuration, the system achieves the highest theoretical acceleration while strictly adhering to the thermal dissipation limits of the original 250-loop design.
 
 
 % \newpage
