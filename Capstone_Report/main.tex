@@ -322,7 +322,7 @@ There are a couple of popular methods for rotation tracking; two common approach
 
 An inertial measurement unit (IMU) is used to determine the rotation quaternion $q$. Using the Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer, we get a quaternion representing the device's state \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}.
 
-Our selected IMU provides us with the current orientation "game vector" ($q$) at 100 Hz. The game vector is sent over $I^2C$. Critically, the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame. The arbitrary rotation of a vector $\vec{v}$ in a body with a rotational state $q$ can be calculated using the following formula:
+Our selected IMU provides us with the current orientation "game vector" ($q$) at 100 Hz. The game vector is sent over $I^2C$. Critically, the quaternion allows us to map the coordinates of the magnets in the ball’s reference frame to the world reference frame. The arbitrary rotation of a vector $\vec{v}$ in a body with a rotational state $q$ can be calculated using the following formula (where $q^{-1}$ is the conjugate operation of the quaternion):
 
 \begin{equation}
     \vec{v}_{\text{rotated}} = q \vec{v} q^{-1}
