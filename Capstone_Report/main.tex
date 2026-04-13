@@ -250,11 +250,6 @@ Figure \ref{fig:currentTest} demonstrates the controller's ability to simultaneo
 \subsection{Software Architecture}
 \subsubsection{Background}
 The high-level goal of the software is to coordinate the actuation of all electromagnets, to produce motion in a desired direction indicated by a user-input. To accomplish this, the software must: 
-\begin{enumerate}
-    \item Track the location of each electromagnet relative to the origin of the ball as it moves through space.
-    \item Determine which electromagnets to activate to produce motion in the desired direction.
-    \item Calibrate the initial orientation between the joystick and the ball. 
-\end{enumerate}
 
 \begin{figure}[h]
     \centering
@@ -263,13 +258,21 @@ The high-level goal of the software is to coordinate the actuation of all electr
     \label{fig:Software_Overview}
 \end{figure}
 
+\begin{enumerate}
+    \item Track the location of each electromagnet relative to the origin of the ball as it moves through space.
+    \item Determine which electromagnets to activate to produce motion in the desired direction.
+    \item Calibrate the initial orientation between the joystick and the ball. 
+\end{enumerate}
+
+
+
 The integration of the ball firmware with a telemetry dashboard UI creates a cohesive experience for the user. 
 
 
 \subsubsection{Data Communication Overview}
 Since our ball rotates omnidirectionally, wired data transmission is not practical. We chose to implement a Wi-Fi-based communication hosted on the ESP, to which the dashboard connects. 
 
-\begin{figure}
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.75\textwidth]{Diagrams and Images/communication-diagram.png}
     \caption[Communications diagram]{Our ball is controlled by a joystick input which gives directional commands, fixed to the user's frame.}
@@ -299,20 +302,22 @@ Each state corresponds to a different mode of operation for the device, details 
 \subsubsection{Orientation Tracking}
 We need to know the orientation of the ball to know where each electromagnet is relative to the origin of the ball. The magnet location information allows us to determine which magnets need to be activated. 
 
-There are a couple of popular methods for rotation tracking; two common approaches include Euler angles and quaternions, outlined in Figure \ref{fig:angle_tracking_options}. We chose to utilize quaternions since it does not suffer from gimbal lock and it is more computationally efficient to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach.
+There are a couple of popular methods for rotation tracking; two common approaches include Euler angles and quaternions, outlined in Figure \ref{fig:angle_tracking_options_quaternion} and \ref{fig:angle_tracking_options_euler}. We chose to utilize quaternions since it does not suffer from gimbal lock and it is more computationally efficient to compute new magnet locations (see \ref{eqn:magnet_rotation}) than the Euler angle approach.
 \begin{figure}[h]
     \begin{minipage}{0.49\textwidth}
         \centering
         \includegraphics[width=0.98\textwidth]{Diagrams and Images/euler-angle.png}
         \caption[Euler angle visualization]{Euler angles is a common representation of rotation that uses three angles to represent the orientation of an object.}
+            \label{fig:angle_tracking_options_euler}
     \end{minipage} 
     \hfill
     \begin{minipage}{0.49\textwidth}
         \centering
         \includegraphics[width=0.98\textwidth]{Diagrams and Images/quaternion-basics.png}
         \caption[Quaternion description]{A quaternion is a mathematical object similar to a vector of size 4 that can represent the orientation of an object in 3D space.}
+        \label{fig:angle_tracking_options_quaternion}
     \end{minipage}
-    \label{fig:angle_tracking_options}
+
 \end{figure}
 
 An inertial measurement unit (IMU) is used to determine the rotation quaternion $q$. Using the Madgwick sensor fusion algorithm which combines the data from the accelerometer, gyroscope, and magnetometer, we get a quaternion representing the device's state \cite{Madgwick_2010}. You can learn more about our selection of the IMU in \ref{sec:IMU_selection}.
